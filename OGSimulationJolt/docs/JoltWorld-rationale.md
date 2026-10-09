@@ -42,6 +42,14 @@ must be destroyed before the matching release.
   touching mDeterministicSimulation (vendored Jolt's physics settings) or any other setting.
 - **Gravity:** `JoltWorldConfig::gravityCmPerS2` converted once, in the constructor, through
   `joltUnits::centimetresToMetres` (`JoltUnits-rationale.md`).
+- **Combine rules:** the constructor sets the physics system's friction and restitution combine
+  functions to `joltBodyDefaults::combineFrictionAverage` / `combineRestitutionAverage`, Chaos's
+  effective rule for every pair, statics included (`JoltBodyDefaults-rationale.md` §2). They are not
+  physics settings (guard G-01's block does not hold them) and not in a snapshot, so like the threshold
+  they come from construction, which every peer runs identically. Each `JoltPhysicsFactory`
+  constructor used to set them (idempotently); a world-wide rule belongs to the world, and
+  a world with no factory, such as a test world or the determinism fingerprint's, now has the same
+  contact rule as a world with characters.
 - **Caps** (construction parameters, `JoltWorldConfig`): `maxBodies` 1024, `maxBodyPairs` 4096,
   `maxContactConstraints` 2048. The worst case of the game this was built for is 8 slots × 6 bodies = 48
   slot bodies plus a few static chunks; under the M1 collision rule only the 8 capsules collide (with

@@ -60,11 +60,12 @@ true.
 
 ## §3 Combine rules
 
-The constructor sets the world's friction and restitution combine functions to
-`joltBodyDefaults::combineFrictionAverage` / `combineRestitutionAverage`, Chaos's effective rule
-(`JoltBodyDefaults-rationale.md` §2). The setting is per physics system and idempotent, so constructing
-a factory per registration repeats it harmlessly; it is in the factory so that a world whose bodies are
-bound always has it. It affects statics too, which is intended: Chaos averages every pair.
+The factory sets no combine rule. The world's friction and restitution combine functions,
+`joltBodyDefaults::combineFrictionAverage` / `combineRestitutionAverage` (Chaos's effective rule,
+`JoltBodyDefaults-rationale.md` §2), are set once by the `JoltWorld` constructor
+(`JoltWorld-rationale.md` §2). This constructor used to set them, idempotently, on every bind; the
+rule is per physics system and affects statics too, so it moved to the world, where a world with no
+bound body has it as well.
 
 ## §4 Motion quality
 

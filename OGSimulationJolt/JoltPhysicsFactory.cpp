@@ -69,9 +69,6 @@ JoltPhysicsFactory::JoltPhysicsFactory(JoltPhysicsBodyAdapter& bodyAdapter,
 		}
 	}
 	OG_CHECK(rootCount == 1, "JoltPhysicsFactory: the slot template must hold exactly one isRoot body (the simulatable's root, its parentBodyId)");
-
-	world.physics().SetCombineFriction(&joltBodyDefaults::combineFrictionAverage);
-	world.physics().SetCombineRestitution(&joltBodyDefaults::combineRestitutionAverage);
 }
 
 JoltPhysicsFactory::PhysicalObjectResult JoltPhysicsFactory::createPhysicalObject(const PhysicalObjectDescriptor& descriptor, const char* /*name*/)

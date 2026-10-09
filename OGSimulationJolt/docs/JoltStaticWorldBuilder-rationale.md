@@ -133,7 +133,7 @@ after 16 lines; the counts in the summary line are complete.
 ## §7 Surface: friction and restitution
 
 Each body takes its group's friction and restitution. How Jolt combines them with a capsule's is set
-once for the whole world by the body factory (its parity table), not here.
+once for the whole world by the world's constructor (`JoltWorld-rationale.md` §2), not here.
 
 **Zero surface.** The first importer emits friction = restitution = 0 for a static whose
 component has no simple physical material, instead of the host engine's default material. The

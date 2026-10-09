@@ -18,6 +18,7 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include "OGSimulation/OGAssert.h"
+#include "OGSimulationJolt/JoltBodyDefaults.h"
 #include "OGSimulationJolt/JoltFpEnvironment.h"
 #include "OGSimulationJolt/JoltUnits.h"
 
@@ -201,6 +202,8 @@ JoltWorld::JoltWorld(JoltRuntime& runtime, const JoltWorldConfig& config, JoltWo
 	settings.mMinVelocityForRestitution = joltUnits::centimetresToMetres(config.minVelocityForRestitutionCmPerS);
 	m_physics.SetPhysicsSettings(settings);
 	m_physics.SetGravity(joltUnits::centimetresToMetres(config.gravityCmPerS2));
+	m_physics.SetCombineFriction(&joltBodyDefaults::combineFrictionAverage);
+	m_physics.SetCombineRestitution(&joltBodyDefaults::combineRestitutionAverage);
 
 	m_liveBodies.reserve(config.maxBodies);
 	buildSlotBodies(config);

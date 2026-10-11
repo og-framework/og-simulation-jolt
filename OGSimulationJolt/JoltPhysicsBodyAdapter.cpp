@@ -171,6 +171,16 @@ void JoltPhysicsBodyAdapter::setBodyTransform(BodyId bodyId, const glm::mat4& tr
 		joltSeamUnits::rotationToJolt(rotation), JPH::EActivation::DontActivate);
 }
 
+void JoltPhysicsBodyAdapter::setBodyPose(BodyId bodyId, const glm::vec3& positionCm, const glm::quat& rotation)
+{
+	if (!isSlotBody(bodyId))
+	{
+		return;
+	}
+	m_world.bodies().SetPositionAndRotation(joltBodyIdOf(bodyId), JPH::RVec3(joltSeamUnits::centimetreVectorToJolt(positionCm)),
+		joltSeamUnits::rotationToJolt(rotation), JPH::EActivation::DontActivate);
+}
+
 void JoltPhysicsBodyAdapter::addBodyTorque(BodyId bodyId, const glm::vec3& torque)
 {
 	if (!isSlotBody(bodyId))

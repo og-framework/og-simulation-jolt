@@ -19,6 +19,9 @@ module would not link.
 
 Members outside the concept:
 
+- `setBodyPose` — writes a pose from a position and a quaternion (§3). It models og-simulation's optional
+  `PhysicsBodyPoseWriter` capability, which is checked by a second `static_assert` beside the first: a
+  signature slip then fails the build instead of making the restore push fall back to the matrix path.
 - `isBodyResolvable` — "this slot body is bound to a simulatable" (§5). Not in the concept; the UE host
   calls it on the body adapter, as it does on the Chaos body adapter today.
 - `getBodyMass` — kg, what Jolt integrates (1 / inverse mass). Used by the force seam and by tests.
@@ -77,6 +80,17 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
 - **`setBodyTransform`** writes position and rotation and does not activate the body (slot bodies
   never sleep, `JoltWorld-rationale.md`). The rotation is normalised first: Jolt expects a unit
   quaternion, and a rotation extracted from a matrix is unit only to float precision.
+- **`setBodyPose`** writes position and rotation with no matrix in between: the position is converted
+  like every length (`centimetreVectorToJolt`), the quaternion only reordered (`rotationToJolt`), and the
+  body is not activated. It does **not** normalise. The restore push
+  (`SimulationIntegrationExecutor::pushCorrectedBodyStatesAll`) hands it either an adopted rotation or the
+  body's own captured one, and either is a capture of a rotation Jolt already held as a unit quaternion;
+  Jolt's set-position-and-rotation stores the quaternion as given. So a pose written this way captures
+  back with the same quaternion bits (`JoltSuite.SetBodyPoseWritesTheQuaternionBitForBitAndTheMatrixPathDoesNot`:
+  0 of 1,000 random unit quaternions change). A normalise would re-round about a third of them (318 of
+  1,000 when tried as a poison), and the matrix path (`setBodyTransform`) changes most of them (930 of
+  1,000). The position is still not exact: the ×0.01 conversion and Jolt's centre-of-mass offset can
+  change it by an ULP (`JoltUnits-rationale.md` §5).
 - **`captureBodyState`** reads the body after the step. Jolt has no separate start-of-step and solved
   pose (Chaos's X/R versus P/Q), so the body's position after an update is the solved pose, the
   counterpart of what the Chaos adapter reads.

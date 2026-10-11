@@ -118,6 +118,7 @@ public:
 
 	[[nodiscard]] OGSIMULATIONJOLT_API glm::mat4 getBodyTransform(BodyId bodyId) const;
 	OGSIMULATIONJOLT_API void setBodyTransform(BodyId bodyId, const glm::mat4& transform);
+	OGSIMULATIONJOLT_API void setBodyPose(BodyId bodyId, const glm::vec3& positionCm, const glm::quat& rotation);
 	OGSIMULATIONJOLT_API void addBodyTorque(BodyId bodyId, const glm::vec3& torque);
 	OGSIMULATIONJOLT_API void setBodyAngularVelocity(BodyId bodyId, const glm::vec3& velocity);
 	OGSIMULATIONJOLT_API void setBodyLinearVelocity(BodyId bodyId, const glm::vec3& velocity);
@@ -151,3 +152,4 @@ private:
 [[nodiscard]] OGSIMULATIONJOLT_API glm::vec3 joltBodyInertiaOf(const JoltWorld& world, const JoltBodyBindTable& bindTable, BodyId bodyId);
 
 static_assert(PhysicsBodyAdapter<JoltPhysicsBodyAdapter>, "JoltPhysicsBodyAdapter must satisfy og-simulation's PhysicsBodyAdapter concept");
+static_assert(PhysicsBodyPoseWriter<JoltPhysicsBodyAdapter>, "JoltPhysicsBodyAdapter must model PhysicsBodyPoseWriter, or the restore push silently falls back to the lossy matrix path");

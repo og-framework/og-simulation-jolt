@@ -36,7 +36,10 @@ defaults those fields start from.
 | `kMassScale` | 1 | FBodyInstance MassScale(1.f) (BodyInstance.cpp:403) |
 | `kMinimumMassKilograms` | 0.001 | The 1 g floor in BodyUtils.cpp:67 |
 
-**Combine rules.** `combineFrictionAverage` and `combineRestitutionAverage` return (a + b) / 2. Chaos
+**Combine rules.** `combineFrictionAverage` and `combineRestitutionAverage` return (a + b) / 2. The
+world installs `combineRestitutionAverage` for restitution and `combineFrictionAverageExceptRoots` for
+friction: 0 for any pair that includes a root body (§5), `combineFrictionAverage` for every other pair.
+Chaos
 combines two materials with the mode ChooseCombineMode picks (the larger enum value of the two
 materials' modes) and CombineHelper (Chaos/Public/Chaos/Defines.h:146-164;
 Chaos/Private/Chaos/PBDCollisionConstraints.cpp:469-473). Each material's mode is copied from the
@@ -49,8 +52,9 @@ finds no reader), so the effective rule is Average for every pair. Jolt's defaul
 friction and max(a, b) for restitution (ContactConstraintManager.h:554-555).
 
 Consequence worth knowing: under Average the capsule (0 / 0) against a default-material static (0.7 /
-0.3) gets friction 0.35 and restitution 0.15, not 0 / 0. That is what Chaos does today, so it is what
-Jolt must do.
+0.3) gets friction 0.35 and restitution 0.15 in Chaos, not 0 / 0. Jolt gives that contact the same
+restitution, 0.15, but friction 0: Chaos applies a capsule's dynamic friction in its velocity phase,
+which never reaches the movement simulation, and 0 is the Jolt value with the same effect (§5).
 
 ## §3 Mass and inertia: `chaosParityMassPropertiesOf`
 
@@ -87,3 +91,54 @@ two axes).
 ## §4 Guards
 
 **None.** Every value is pinned by a test (`JoltPhysicsFactory.EveryBrawlerDeclarationBindsAChaosParityBody`).
+The root-aware friction combine is pinned by `JoltSuite.OnlyContactsWithARootCapsuleAreFrictionless`
+(the combined friction Jolt actually used for each contact pair) and
+`JoltSuite.CapsulePushOutOnASixtyDegreeSlopeIsTheFaceNormal` (§5).
+
+## §5 Contacts with a root body have no friction
+
+**The rule.** `combineFrictionAverageExceptRoots` returns 0 when either body carries the root mark
+(`joltBodyUserData::isRoot` on the body's user data), and `combineFrictionAverage` otherwise. That
+covers every pair with a root: root and static, root and root, root and a created body. Every other
+pair keeps the average: a created body (0.7) on a 0.7 static combines to 0.7, on a friction-0 static to
+0.35. Restitution is not affected.
+
+**Why 0 matches Chaos.** The game's movement simulation does not keep its body's velocity. Each tick
+it commands a velocity, the solver moves the capsule, and the simulation reads back only the position
+and compares it with where the command alone would have put it (the push-out). Only friction that
+moves the position reaches the simulation.
+
+- **Chaos.** Its default solver settings run 4 position-phase and 1 velocity-phase friction iterations
+  (Chaos/Public/Chaos/Collision/PBDCollisionSolverSettings.h:17-18). With those settings a contact
+  with a quadratic shape (a sphere or a capsule) has its dynamic friction applied in the velocity
+  phase, not the position phase (Chaos/Private/Chaos/Collision/PBDCollisionContainerSolver.cpp:290-310).
+  The position phase keeps static friction only, and once the static cone is exceeded it clips to the
+  position-phase dynamic friction, which is then 0
+  (Chaos/Public/Chaos/Collision/PBDCollisionSolver.h:489-503). On a slope steeper than atan(0.35) the
+  position correction is therefore along the face normal alone.
+- **Jolt** solves friction with the velocity constraints, then integrates the position with the solved
+  velocity, then solves the position constraints along the normal only (vendored Jolt
+  Physics/PhysicsSystem.cpp: the solve-velocity, integrate and solve-position jobs at :494, :523 and
+  :558). The friction impulse shows up in the position. On a 60° slope with combined friction 0.35 the
+  push-out tilts atan(0.35) = 19.3° up-slope, to 40.7° from vertical. The movement simulation reads that
+  as walkable ground, removes the vertical velocity, and the character stands where Chaos slides it.
+
+Measured by `JoltSuite.CapsulePushOutOnASixtyDegreeSlopeIsTheFaceNormal`: a root capsule on a 60°
+0.7 / 0.3 triangle mesh, driven for 30 ticks by the movement simulation's command, step and push-out
+loop. With the plain average, normalize(push-out)·up ranges over 0.738-0.758 and the capsule moves 6.7
+cm down the slope. With this rule it ranges over 0.476-0.516 (the face normal gives 0.5) and the capsule
+slides 109.7 cm, close to the frictionless ½·g·sin 60°·t² ≈ 106 cm.
+
+**The root mark.** A root is a slot body whose template has `BodyDescriptor::isRoot`: og-simulation's
+marker for a simulatable's own movement body, with nothing game-specific in it. The world writes
+`joltBodyUserData::encodeUnbound` into each slot body's user data when it creates the body. The
+factory's bind keeps the mark (`joltBodyUserData::encode` takes the template's `isRoot`) after an
+`OG_CHECK` that the world's mark and the factory's template agree. The combine callback receives only
+the two bodies, so it reads the mark from their user data. That read is O(1). The mark is the same on
+every peer, because it comes from the template. It is never rolled back, because Jolt's snapshot does
+not hold user data. Statics have user data 0, so they are never roots.
+
+**Residual.** Inside the static-friction cone Chaos's position-phase static friction holds the
+capsule, and Jolt, with no friction, does not. The case is pressing nearly head-on into a wall: the
+capsule drifts sideways along the wall by at most 0.35 × the normal push-out per tick. Exact parity
+would need a static-only friction emulation (a custom constraint), which this rule does not attempt.

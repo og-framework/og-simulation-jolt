@@ -20,6 +20,7 @@
 #include "OGSimulation/OGAssert.h"
 #include "OGSimulationJolt/JoltBodyDefaults.h"
 #include "OGSimulationJolt/JoltFpEnvironment.h"
+#include "OGSimulationJolt/JoltPhysicsBodyAdapter.h"
 #include "OGSimulationJolt/JoltUnits.h"
 
 namespace
@@ -202,7 +203,7 @@ JoltWorld::JoltWorld(JoltRuntime& runtime, const JoltWorldConfig& config, JoltWo
 	settings.mMinVelocityForRestitution = joltUnits::centimetresToMetres(config.minVelocityForRestitutionCmPerS);
 	m_physics.SetPhysicsSettings(settings);
 	m_physics.SetGravity(joltUnits::centimetresToMetres(config.gravityCmPerS2));
-	m_physics.SetCombineFriction(&joltBodyDefaults::combineFrictionAverage);
+	m_physics.SetCombineFriction(&joltBodyDefaults::combineFrictionAverageExceptRoots);
 	m_physics.SetCombineRestitution(&joltBodyDefaults::combineRestitutionAverage);
 
 	m_liveBodies.reserve(config.maxBodies);
@@ -248,6 +249,7 @@ void JoltWorld::buildSlotBodies(const JoltWorldConfig& config)
 				body.simulatePhysics ? JPH::EMotionType::Dynamic : JPH::EMotionType::Kinematic, m_layers.parkedLayer());
 			settings.mAllowSleeping = false;
 			settings.mGravityFactor = 0.f;
+			settings.mUserData = joltBodyUserData::encodeUnbound(body.isRoot);
 			if (body.lockRotation)
 			{
 				settings.mAllowedDOFs = JPH::EAllowedDOFs::TranslationX | JPH::EAllowedDOFs::TranslationY | JPH::EAllowedDOFs::TranslationZ;

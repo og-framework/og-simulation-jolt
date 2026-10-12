@@ -43,8 +43,10 @@ must be destroyed before the matching release.
 - **Gravity:** `JoltWorldConfig::gravityCmPerS2` converted once, in the constructor, through
   `joltUnits::centimetresToMetres` (`JoltUnits-rationale.md`).
 - **Combine rules:** the constructor sets the physics system's friction and restitution combine
-  functions to `joltBodyDefaults::combineFrictionAverage` / `combineRestitutionAverage`, Chaos's
-  effective rule for every pair, statics included (`JoltBodyDefaults-rationale.md` §2). They are not
+  functions to `joltBodyDefaults::combineFrictionAverageExceptRoots` / `combineRestitutionAverage`,
+  Chaos's effective rule for every pair, statics included (`JoltBodyDefaults-rationale.md` §2), with
+  friction 0 for any pair that includes a root body, which is what reaches Chaos's movement simulation
+  (`JoltBodyDefaults-rationale.md` §5). They are not
   physics settings (guard G-01's block does not hold them) and not in a snapshot, so like the threshold
   they come from construction, which every peer runs identically. Each `JoltPhysicsFactory`
   constructor used to set them (idempotently); a world-wide rule belongs to the world, and
@@ -79,6 +81,10 @@ world.
   every slot body (a sleeping body would make the active set history-dependent); rotation locked to
   translation-only degrees of freedom when `BodyDescriptor::lockRotation`. Materials, damping, mass
   and motion quality are Jolt's defaults here; the body factory sets the parity values.
+- **Root mark.** The body's user data starts as `joltBodyUserData::encodeUnbound` of the template's
+  `BodyDescriptor::isRoot`. The friction combine reads that mark (`JoltBodyDefaults-rationale.md` §5),
+  so a root's contacts are frictionless from the body's creation, before any bind and in a world that
+  never binds, such as the determinism fingerprint's. The factory's bind keeps it.
 - **Parking position.** Every slot body starts at `JoltWorldConfig::parkingPositionCm`, on the PARKED
   layer with gravity factor 0.
 
@@ -233,7 +239,9 @@ Parity row for gate 22:
 
 Note for gate 22: Chaos combines friction and restitution with Average, so the capsule (a 0 / 0
 material) against a default static already gets friction 0.35 and restitution 0.15 in Chaos; "0/0
-capsule" describes the material, not the contact.
+capsule" describes the material, not the contact. The Jolt world gives the same contact restitution
+0.15 and friction 0, because Chaos applies that 0.35 in its velocity phase, which the movement
+simulation never reads (`JoltBodyDefaults-rationale.md` §5).
 
 ## §13 Restoring from another world's slot: `restoreFromSnapshot`
 

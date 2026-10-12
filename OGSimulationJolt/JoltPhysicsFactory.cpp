@@ -130,7 +130,9 @@ void JoltPhysicsFactory::applyBodyDefaults(const JPH::BodyID& id, const SlotBody
 			descriptor.isRoot ? joltBodyDefaults::kAdoptedRootMaterial : joltBodyDefaults::kCreatedBodyMaterial;
 		body.SetFriction(material.friction);
 		body.SetRestitution(material.restitution);
-		body.SetUserData(joltBodyUserData::encode(JoltBodyBinding{ m_simulatableId, slotTemplate.declarationIndex }));
+		OG_CHECK(joltBodyUserData::isRoot(body.GetUserData()) == descriptor.isRoot,
+			"JoltPhysicsFactory: the world built this slot body with a different isRoot than the factory's slot template (the frictionless-root contact rule reads the world's mark)");
+		body.SetUserData(joltBodyUserData::encode(JoltBodyBinding{ m_simulatableId, slotTemplate.declarationIndex }, descriptor.isRoot));
 
 		// ⛔G-02  docs/JoltPhysicsFactory-guards.md
 		JPH::MotionProperties& motion = *body.GetMotionProperties();

@@ -36,7 +36,9 @@ For the slot body, inside one body write lock:
 
 - friction and restitution: `kAdoptedRootMaterial` for the root, `kCreatedBodyMaterial` for every other
   body (guard G-01; `JoltBodyDefaults-rationale.md` §2);
-- body user data: the binding (`joltBodyUserData::encode`);
+- body user data: the binding and the root mark (`joltBodyUserData::encode` with the template's
+  `isRoot`), after an `OG_CHECK` that the world created the body with the same root mark
+  (`joltBodyUserData::isRoot`; `JoltBodyDefaults-rationale.md` §5);
 - linear and angular damping, max angular and max linear velocity from `JoltBodyDefaults.h`;
 - mass and inertia from `joltBodyDefaults::chaosParityMassPropertiesOf`, with the body's allowed
   degrees of freedom (all, or translation only for a `lockRotation` body);
@@ -52,7 +54,8 @@ the occupancy that the step driver applies says otherwise.
 Everything a bind writes is body **configuration**, which Jolt's snapshot does not save. That is safe
 because every slot gets the same values for the same template body, so a bind never makes two peers or
 two restored ticks differ (`JoltBodyAdapter.BoundBodyConfigurationSurvivesARestore`). Unbound slot bodies
-keep Jolt's defaults until their first bind; they are parked, so no contact or query sees them.
+keep Jolt's defaults until their first bind, apart from the root mark the world writes into their user
+data; they are parked, so no contact or query sees them.
 
 Then the bind table records the binding and the locked-rotation inertia
 (`JoltPhysicsBodyAdapter-rationale.md` §5). From the next poll the host's "resolvable?" question answers
@@ -61,8 +64,9 @@ true.
 ## §3 Combine rules
 
 The factory sets no combine rule. The world's friction and restitution combine functions,
-`joltBodyDefaults::combineFrictionAverage` / `combineRestitutionAverage` (Chaos's effective rule,
-`JoltBodyDefaults-rationale.md` §2), are set once by the `JoltWorld` constructor
+`joltBodyDefaults::combineFrictionAverageExceptRoots` / `combineRestitutionAverage` (Chaos's effective
+rule, with friction 0 for a root's contacts: `JoltBodyDefaults-rationale.md` §2 and §5), are set once
+by the `JoltWorld` constructor
 (`JoltWorld-rationale.md` §2). This constructor used to set them, idempotently, on every bind; the
 rule is per physics system and affects statics too, so it moved to the world, where a world with no
 bound body has it as well.

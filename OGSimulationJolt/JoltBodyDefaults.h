@@ -8,6 +8,7 @@
 #include <variant>
 
 #include "OGSimulationJolt/JoltDefineChecks.h"
+#include "OGSimulationJolt/JoltPhysicsBodyAdapter.h"
 
 #include <Jolt/Physics/Body/Body.h>
 
@@ -42,6 +43,16 @@ namespace joltBodyDefaults
 	inline float combineFrictionAverage(const JPH::Body& first, const JPH::SubShapeID&, const JPH::Body& second, const JPH::SubShapeID&)
 	{
 		return 0.5f * (first.GetFriction() + second.GetFriction());
+	}
+
+	inline float combineFrictionAverageExceptRoots(const JPH::Body& first, const JPH::SubShapeID& firstSubShape, const JPH::Body& second,
+		const JPH::SubShapeID& secondSubShape)
+	{
+		if (joltBodyUserData::isRoot(first.GetUserData()) || joltBodyUserData::isRoot(second.GetUserData()))
+		{
+			return 0.f;
+		}
+		return combineFrictionAverage(first, firstSubShape, second, secondSubShape);
 	}
 
 	inline float combineRestitutionAverage(const JPH::Body& first, const JPH::SubShapeID&, const JPH::Body& second, const JPH::SubShapeID&)

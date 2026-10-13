@@ -57,7 +57,7 @@ The adapter takes no lock itself and reads Jolt through the world's no-lock inte
 to different slots report different ids for it; nothing below orders by them.
 
 **Owner.** The owner simulatable id and declaration index come from the body's **user data**, written by
-`JoltPhysicsFactory` at bind (`joltBodyUserData`). That is "the factory's table" the task text names.
+`JoltPhysicsFactory` at bind (`joltBodyUserData`; `JoltBodyUserData-rationale.md` §3). That is "the factory's table" the task text names.
 The bind table of `JoltPhysicsBodyAdapter` holds the same binding but is game-thread data in M1, so the
 step-thread query does not read it (guard G-04).
 

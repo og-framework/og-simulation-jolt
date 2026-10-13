@@ -81,7 +81,8 @@ world.
   every slot body (a sleeping body would make the active set history-dependent); rotation locked to
   translation-only degrees of freedom when `BodyDescriptor::lockRotation`. Materials, damping, mass
   and motion quality are Jolt's defaults here; the body factory sets the parity values.
-- **Root mark.** The body's user data starts as `joltBodyUserData::encodeUnbound` of the template's
+- **Root mark.** The body's user data (`JoltBodyUserData-rationale.md` §3) starts as
+  `joltBodyUserData::encodeUnbound` of the template's
   `BodyDescriptor::isRoot`. The friction combine reads that mark (`JoltBodyDefaults-rationale.md` §5),
   so a root's contacts are frictionless from the body's creation, before any bind and in a world that
   never binds, such as the determinism fingerprint's. The factory's bind keeps it.
@@ -186,13 +187,14 @@ replay equals the original at every tick).
 
 ## §9 FP environment
 
-`step` runs inside `JoltStepFpScope` and checks the mode (`JoltFpEnvironment-rationale.md`).
+`step` runs inside `JoltStepFpScope` and checks the mode (`JoltFpEnvironment-rationale.md`). The
+after-step observer (§14) runs after the scope has closed, in the caller's own FP mode.
 
 ## §10 Threading and access
 
 The world is single-threaded: every member, and `bodies`, `query` and `physics`, must be called from the
 thread that steps it. `bodies` returns Jolt's non-locking body interface. Nothing here checks the
-thread; the host decides which thread owns the world.
+thread; the host decides which thread owns the world. The after-step observer (§14) runs on that thread too.
 
 ## §11 What the tests show (2026-10-07, Win64 Development and standalone Debug with Jolt asserts)
 
@@ -305,3 +307,23 @@ lists (body, root, categories, position), at least 20 of them with slot-body hit
 slot fewer, or one template body fewer, is refused with one Warning line and its hash and full state
 unchanged. 200 restores alternating between the two newest ticks: median 0.0041–0.0047 ms over
 six runs (p95 at most 0.0078 ms).
+
+## §14 The after-step observer: `setAfterStepObserver`
+
+`setAfterStepObserver` sets one plain function pointer and a context pointer that `step` calls after
+every physics step, once the update has returned and the FP scope has closed. It exists so a host can
+do per-step work at the one place every step passes through: og-simulation's step driver calls `step`
+for a forward step and for each replayed step of a resimulation, but its step hooks fire once per
+tick, not once per replayed step. A host uses it to drain a `JoltContactCounter` after each step
+(`JoltContactCounter-rationale.md` §5).
+
+- **Off by default.** With no observer set, `step` pays one null check.
+- **One observer.** Setting a second while one is set fails an `OG_CHECK`; pass nullptr first to
+  replace it. A world has one contact listener too, and a host that needs more fans out itself.
+- **No state, no snapshot.** The observer is not in a snapshot and does not roll back; it is host
+  wiring, set once after construction.
+- **What it may do.** It runs on the stepping thread with the world idle, so it may read the world
+  (a contact listener's counts, `physicsStepCount`). Stepping the world from it would recurse.
+
+**Measured:** `JoltContactCounter.AWorldWithTheCounterStepsBitIdenticallyToOneWithout` drains its
+counter through the observer and checks it ran once per step (240 of 240).

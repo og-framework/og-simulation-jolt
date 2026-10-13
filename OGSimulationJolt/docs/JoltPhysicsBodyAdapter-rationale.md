@@ -3,7 +3,9 @@
 
 og-simulation's body seam (`PhysicsBodyAdapter`) implemented on a `JoltWorld`, plus the two things
 every Jolt adapter shares: the seam-unit conversions (`joltSeamUnits`) and the bind table
-(`JoltBodyBindTable`). Prohibitions are in `JoltPhysicsBodyAdapter-guards.md`.
+(`JoltBodyBindTable`). Prohibitions are in `JoltPhysicsBodyAdapter-guards.md`. The binding the table
+stores (`JoltBodyBinding`) and the body user data helpers (`joltBodyUserData`) are in
+`JoltBodyUserData.h`, which this header includes (`JoltBodyUserData-rationale.md`).
 
 **If this file and the sources disagree, the sources are authoritative and this file is stale.**
 
@@ -149,15 +151,8 @@ compiled out, like the Chaos adapter's unresolved-body path.
 
 ## §7 Body user data
 
-`joltBodyUserData::encode` packs a binding into Jolt's 64-bit body user data: bit 63 = bound, bit 62 =
-root (`kRootBit`), bits 8-39 = simulatable id, bits 0-7 = declaration index. `decode` returns nothing
-when bit 63 is clear (Jolt's default user data is 0) and ignores bit 62. `encodeUnbound` is the root
-bit alone, which the world writes into every slot body at creation; `isRoot` reads it for the friction
-combine (`JoltBodyDefaults-rationale.md` §5). `encode` takes `isRoot` as a required argument, so a bind
-cannot drop the mark by leaving it out. `static_assert`s pin the round trip at the field limits, with
-and without the root bit. User data is body
-configuration, not simulation state: Jolt's snapshot does not save it, so it is the same in every
-restored tick.
+The packing of a binding and the root mark into Jolt's body user data moved, with the helpers, to
+`JoltBodyUserData.h`; its text is `JoltBodyUserData-rationale.md` §3.
 
 ## §8 Guards
 

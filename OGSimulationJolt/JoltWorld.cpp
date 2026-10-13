@@ -299,16 +299,30 @@ JPH::BodyID JoltWorld::createStaticBody(const JPH::BodyCreationSettings& setting
 
 void JoltWorld::step(float dt)
 {
-	JoltStepFpScope fpScope;
-	OG_CHECK(isExpectedJoltStepFpMode(readJoltFpMode()),
-		"JoltWorld::step - the FP environment is not FTZ + DAZ + round-to-nearest inside the step scope; every thread must step under the same FP mode");
-
-	const JPH::EPhysicsUpdateError errors = m_physics.Update(dt, 1, &m_tempAllocator, &m_jobSystem);
-	++m_physicsStepCount;
-	if (errors != JPH::EPhysicsUpdateError::None)
 	{
-		reportUpdateErrors(errors);
+		JoltStepFpScope fpScope;
+		OG_CHECK(isExpectedJoltStepFpMode(readJoltFpMode()),
+			"JoltWorld::step - the FP environment is not FTZ + DAZ + round-to-nearest inside the step scope; every thread must step under the same FP mode");
+
+		const JPH::EPhysicsUpdateError errors = m_physics.Update(dt, 1, &m_tempAllocator, &m_jobSystem);
+		++m_physicsStepCount;
+		if (errors != JPH::EPhysicsUpdateError::None)
+		{
+			reportUpdateErrors(errors);
+		}
 	}
+	if (m_afterStep != nullptr)
+	{
+		m_afterStep(m_afterStepContext);
+	}
+}
+
+void JoltWorld::setAfterStepObserver(JoltWorldAfterStepFn observer, void* context)
+{
+	OG_CHECK(observer == nullptr || m_afterStep == nullptr,
+		"JoltWorld::setAfterStepObserver - an observer is already set; clear it (nullptr) before setting another");
+	m_afterStep = observer;
+	m_afterStepContext = observer != nullptr ? context : nullptr;
 }
 
 void JoltWorld::reportUpdateErrors(JPH::EPhysicsUpdateError errors)

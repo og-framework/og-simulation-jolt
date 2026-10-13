@@ -28,6 +28,7 @@
 
 using JoltWorldLoggerFn = std::function<void(const char*)>;
 using JoltWorldClockFn = double (*)();
+using JoltWorldAfterStepFn = void (*)(void* context);
 
 inline constexpr float kChaosRestitutionThresholdCmPerS2 = 1000.f;
 inline constexpr float kChaosParityStepSeconds = 1.f / 60.f;
@@ -76,6 +77,7 @@ public:
 	JoltWorld& operator=(const JoltWorld&) = delete;
 
 	OGSIMULATIONJOLT_API void step(float dt);
+	OGSIMULATIONJOLT_API void setAfterStepObserver(JoltWorldAfterStepFn observer, void* context);
 	OGSIMULATIONJOLT_API void saveTick(SimTick tick);
 	OGSIMULATIONJOLT_API bool restoreTick(SimTick tick);
 	OGSIMULATIONJOLT_API bool restoreFromSnapshot(const JoltStateSlot& slot);
@@ -153,6 +155,8 @@ private:
 	JPH::BodyIDVector m_liveBodies;
 	uint32_t m_nextStaticBodyIndex = 0;
 	uint64_t m_physicsStepCount = 0;
+	JoltWorldAfterStepFn m_afterStep = nullptr;
+	void* m_afterStepContext = nullptr;
 	std::optional<SimTick> m_lastSavedTick;
 	std::array<OverflowLog, static_cast<size_t>(JoltContactOverflow::Count)> m_overflow{};
 };

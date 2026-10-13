@@ -98,7 +98,7 @@ The root-aware friction combine is pinned by `JoltSuite.OnlyContactsWithARootCap
 ## §5 Contacts with a root body have no friction
 
 **The rule.** `combineFrictionAverageExceptRoots` returns 0 when either body carries the root mark
-(`joltBodyUserData::isRoot` on the body's user data), and `combineFrictionAverage` otherwise. That
+(`joltBodyUserData::isRoot` on the body's user data; `JoltBodyUserData-rationale.md` §3), and `combineFrictionAverage` otherwise. That
 covers every pair with a root: root and static, root and root, root and a created body. Every other
 pair keeps the average: a created body (0.7) on a 0.7 static combines to 0.7, on a friction-0 static to
 0.35. Restitution is not affected.
@@ -132,7 +132,8 @@ slides 109.7 cm, close to the frictionless ½·g·sin 60°·t² ≈ 106 cm.
 **The root mark.** A root is a slot body whose template has `BodyDescriptor::isRoot`: og-simulation's
 marker for a simulatable's own movement body, with nothing game-specific in it. The world writes
 `joltBodyUserData::encodeUnbound` into each slot body's user data when it creates the body. The
-factory's bind keeps the mark (`joltBodyUserData::encode` takes the template's `isRoot`) after an
+factory's bind keeps the mark (`joltBodyUserData::encode` takes the template's `isRoot`;
+`JoltBodyUserData-rationale.md` §4) after an
 `OG_CHECK` that the world's mark and the factory's template agree. The combine callback receives only
 the two bodies, so it reads the mark from their user data. That read is O(1). The mark is the same on
 every peer, because it comes from the template. It is never rolled back, because Jolt's snapshot does

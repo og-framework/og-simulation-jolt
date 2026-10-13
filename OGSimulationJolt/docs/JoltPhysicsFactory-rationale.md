@@ -37,7 +37,8 @@ For the slot body, inside one body write lock:
 - friction and restitution: `kAdoptedRootMaterial` for the root, `kCreatedBodyMaterial` for every other
   body (guard G-01; `JoltBodyDefaults-rationale.md` §2);
 - body user data: the binding and the root mark (`joltBodyUserData::encode` with the template's
-  `isRoot`), after an `OG_CHECK` that the world created the body with the same root mark
+  `isRoot`; `JoltBodyUserData-rationale.md` §3), after an `OG_CHECK` that the world created the body
+  with the same root mark
   (`joltBodyUserData::isRoot`; `JoltBodyDefaults-rationale.md` §5);
 - linear and angular damping, max angular and max linear velocity from `JoltBodyDefaults.h`;
 - mass and inertia from `joltBodyDefaults::chaosParityMassPropertiesOf`, with the body's allowed

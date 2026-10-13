@@ -7,8 +7,8 @@
 #include <numbers>
 #include <variant>
 
+#include "OGSimulationJolt/JoltBodyUserData.h"
 #include "OGSimulationJolt/JoltDefineChecks.h"
-#include "OGSimulationJolt/JoltPhysicsBodyAdapter.h"
 
 #include <Jolt/Physics/Body/Body.h>
 

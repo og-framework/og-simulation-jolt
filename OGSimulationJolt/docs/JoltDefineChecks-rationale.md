@@ -40,7 +40,7 @@ other.
 lines 286–304), so `JPH_DEBUG_RENDERER=0` turns it **on**. When on, `JPH::Shape` gains the `Draw*`
 virtuals in the middle of its virtual table, and feature bit 6 of `JPH_VERSION_ID` flips. It is never
 enabled, in any configuration: debug drawing is to come from the host, not from Jolt. The predecessor module
-`JoltPhysicsModule` defined `JPH_DEBUG_RENDERER=0` and `JPH_PROFILE_ENABLED=0` as *private*
+JoltPhysicsModule (historical: deleted after the parity gate) defined `JPH_DEBUG_RENDERER=0` and `JPH_PROFILE_ENABLED=0` as *private*
 definitions, which turned both on inside that module and off everywhere else.
 
 **`JPH_PROFILE_ENABLED`.** Also tested with `#ifdef` (`Core.h` line 28; `Jolt/Core/Profiler.h` line 86 tests it with `defined`), so `=0`

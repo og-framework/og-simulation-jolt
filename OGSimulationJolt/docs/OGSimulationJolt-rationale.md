@@ -64,7 +64,7 @@ compiles the library, the stub and all vendored Jolt sources; nothing is listed 
 - **Defines, all public:** `JPH_OBJECT_LAYER_BITS=16`; `JPH_USE_SSE4_1=1` and `JPH_USE_SSE4_2=1` on
   Win64 and Linux only. ARM64 targets (Android) get NEON from Jolt's own detection.
 - **`bEnableExceptions = false`, `bUseRTTI = false`:** as in §2.
-- **`bUseUnity = false`:** carried over from the predecessor `JoltPhysicsModule`, which compiled Jolt
+- **`bUseUnity = false`:** carried over from the predecessor JoltPhysicsModule (historical: deleted after the parity gate), which compiled Jolt
   non-unity; a unity build of Jolt has not been tried.
 - **`IWYUSupport = IWYUSupport.None`:** without it UnrealBuildTool's first-include check reports
   "Expected X.h to be first header included" for each of the 138 vendored Jolt `.cpp` files (measured

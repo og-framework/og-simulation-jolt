@@ -59,7 +59,7 @@ place:
 Because torque and inertia are scaled by the same factor, Δω = τ / I · dt holds in seam units
 (`JoltBodyAdapter.ATorqueInSeamUnitsYieldsTauOverInertiaTimesDt`).
 
-The old UE-only adapter (Source/JoltPhysicsModule, retired after the parity gate) passed torque through
+The old UE-only adapter (Source/JoltPhysicsModule; historical: deleted after the parity gate) passed torque through
 unconverted and reported inertia in kg·m². Both are bugs, not precedent: with the brawler's own
 torque = a·I they cancel for the weapon, but any torque not built from this seam's inertia would be off
 by 10⁴. Both were reproduced as poison arms against the tests while this adapter was built.

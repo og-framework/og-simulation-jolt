@@ -362,15 +362,15 @@ public:
 		return slot;
 	}
 
-	template <typename PushOccupancyF>
-	std::optional<uint32_t> release(uint64_t key, unsigned int id, PushOccupancyF&& pushOccupancy)
+	template <typename PushBodySlotOccupancyF>
+	std::optional<uint32_t> release(uint64_t key, unsigned int id, PushBodySlotOccupancyF&& pushBodySlotOccupancy)
 	{
 		const std::optional<uint32_t> slot = m_slots.release(key);
 		if (!slot.has_value())
 			return std::nullopt;
 
 		// ⛔G-02  docs/JoltTickWorldHost-guards.md
-		pushOccupancy(*slot, false);
+		pushBodySlotOccupancy(*slot, false);
 		(*m_bodyAdapter)->bindTable().releaseSlot(*slot);
 
 		if (m_engine.logEnabled(HostLogLevel::Warning))

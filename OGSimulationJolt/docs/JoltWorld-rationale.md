@@ -14,7 +14,7 @@ one guard tag; this file carries the why. Prohibitions are in `JoltWorld-guards.
 
 `static_assert(PhysicsWorldAdapter<JoltWorld>)` at the end of `JoltWorld.h` checks every member against
 og-simulation's concept: `step`, `saveTick`, `restoreTick`, `hasTick`, `oldestHeldTick`,
-`invalidateAllTicks`, `saveScratch`, `commitScratch`, `applyOccupancy`, `stateHash` and `coverage`. The
+`invalidateAllTicks`, `saveScratch`, `commitScratch`, `applyBodySlotOccupancy`, `stateHash` and `coverage`. The
 contracts behind them are in og-simulation's `PhysicsWorldAdapter-rationale.md`; this file says how
 Jolt meets them. `restoreFromSnapshot` is not part of the concept: it restores a slot saved by
 another world (§13).
@@ -91,7 +91,7 @@ world.
 
 ## §4 Occupancy
 
-`applyOccupancy(occ)` sets, for each slot whose bit changed since the last call:
+`applyBodySlotOccupancy(occ)` sets, for each slot whose bit changed since the last call:
 
 - **occupied:** every body of the slot on its template layer (`templateLayer`) with its template
   gravity factor (1 when `BodyDescriptor::enableGravity`, else 0);

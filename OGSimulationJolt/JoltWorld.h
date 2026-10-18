@@ -86,7 +86,7 @@ public:
 	OGSIMULATIONJOLT_API void invalidateAllTicks();
 	OGSIMULATIONJOLT_API void saveScratch();
 	OGSIMULATIONJOLT_API void commitScratch(SimTick tick);
-	OGSIMULATIONJOLT_API void applyOccupancy(const BodySlotOccupancy& occupancy);
+	OGSIMULATIONJOLT_API void applyBodySlotOccupancy(const BodySlotOccupancy& occupancy);
 	[[nodiscard]] OGSIMULATIONJOLT_API std::optional<uint64_t> stateHash(SimTick tick) const;
 
 	[[nodiscard]] JPH::PhysicsSystem& physics() { return m_physics; }
@@ -98,7 +98,7 @@ public:
 	[[nodiscard]] ShapeEnableTable& shapeEnables() { return m_shapeEnables; }
 	[[nodiscard]] const ShapeEnableTable& shapeEnables() const { return m_shapeEnables; }
 	[[nodiscard]] const JoltStateRing& ring() const { return m_ring; }
-	[[nodiscard]] const BodySlotOccupancy& appliedOccupancy() const { return m_appliedOccupancy; }
+	[[nodiscard]] const BodySlotOccupancy& appliedBodySlotOccupancy() const { return m_appliedBodySlotOccupancy; }
 
 	[[nodiscard]] uint32_t simulatableSlots() const { return m_simulatableSlots; }
 	[[nodiscard]] uint32_t bodiesPerSlot() const { return static_cast<uint32_t>(m_template.size()); }
@@ -132,7 +132,7 @@ private:
 	};
 
 	void buildSlotBodies(const JoltWorldConfig& config);
-	void applyOccupancyToSlots(const BodySlotOccupancy& occupancy, bool forceEverySlot);
+	void applyBodySlotOccupancyToSlots(const BodySlotOccupancy& occupancy, bool forceEverySlot);
 	void saveInto(JoltStateSlot& slot, SimTick tick);
 	[[nodiscard]] bool liveBodySetMatches(const JoltStateSlot& slot);
 	[[nodiscard]] bool restoreSlot(const JoltStateSlot& slot, RestoreUndo undo, const char* caller);
@@ -151,7 +151,7 @@ private:
 	JoltStateRing m_ring;
 	JoltFixedStateRecorder m_recorder;
 	ShapeEnableTable m_shapeEnables;
-	BodySlotOccupancy m_appliedOccupancy;
+	BodySlotOccupancy m_appliedBodySlotOccupancy;
 	JPH::BodyIDVector m_liveBodies;
 	uint32_t m_nextStaticBodyIndex = 0;
 	uint64_t m_physicsStepCount = 0;

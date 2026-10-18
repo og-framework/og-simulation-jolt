@@ -80,7 +80,7 @@ namespace
 		BodySlotOccupancy occupancy;
 		occupancy.occupied.set(0);
 		occupancy.occupied.set(1);
-		world.applyOccupancy(occupancy);
+		world.applyBodySlotOccupancy(occupancy);
 		world.bodies().SetPosition(world.slotBodyId(0, 0), JPH::RVec3(-0.40f, 0.f, 1.0f), JPH::EActivation::Activate);
 		world.bodies().SetPosition(world.slotBodyId(1, 0), JPH::RVec3(0.40f, 0.05f, 1.3f), JPH::EActivation::Activate);
 

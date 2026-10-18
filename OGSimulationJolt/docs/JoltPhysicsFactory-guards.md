@@ -44,11 +44,11 @@ line that takes the body's motion properties (where further body writes would be
 **The prohibition.** Do not set the object layer, the gravity factor, the position, the rotation or
 the velocities of the slot body in the factory, and do not activate or deactivate it there.
 
-**The consequence.** The world owns those through occupancy (`JoltWorld::applyOccupancy` sets the
+**The consequence.** The world owns those through occupancy (`JoltWorld::applyBodySlotOccupancy` sets the
 layer, gravity factor and, for a vacant slot, zero velocity) and through the snapshot ring (position,
 rotation, velocities). The host binds a character's bodies a frame or more before the step driver
 occupies the slot. A layer or gravity write at bind would make a vacant slot collide or fall before
-its first occupied tick, on this peer only. `JoltWorld::applyOccupancy` rewrites only slots whose
+its first occupied tick, on this peer only. `JoltWorld::applyBodySlotOccupancy` rewrites only slots whose
 occupancy changed, so the wrong layer stays until the slot is occupied or a restore re-applies every
 slot (the authority never restores): peers step different worlds for those ticks, and the snapshot does
 not contain the layer, so nothing shows it.

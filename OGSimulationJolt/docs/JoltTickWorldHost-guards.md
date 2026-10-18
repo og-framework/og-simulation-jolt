@@ -57,10 +57,10 @@ check anywhere.
 
 ## G-02 — a release pushes the vacated slot to the caller; it never applies occupancy itself
 
-**Tag site:** `JoltTickWorldHost.h`, in `release`, immediately above `pushOccupancy(*slot, false);`.
+**Tag site:** `JoltTickWorldHost.h`, in `release`, immediately above `pushBodySlotOccupancy(*slot, false);`.
 
 **The prohibition.** ⛔ Do not replace the push with a call that changes the world's occupancy
-(`JoltWorld::applyOccupancy`, or anything that parks or unparks bodies), here or anywhere on the game
+(`JoltWorld::applyBodySlotOccupancy`, or anything that parks or unparks bodies), here or anywhere on the game
 thread, and do not drop it. The vacate goes through the caller's door to the step's occupancy command ring.
 
 **The consequence.** The same as G-01's occupancy half: a slot parked from the game thread changes the
@@ -68,7 +68,7 @@ world between two saved ticks without the step driver's occupancy timeline, so a
 set the prediction did not have; on a worker client it also races the running step. A dropped push leaves
 the slot occupied in the step after its character left.
 
-**What breaks if it moves.** Replacing the push with `applyOccupancy` fails
+**What breaks if it moves.** Replacing the push with `applyBodySlotOccupancy` fails
 `JoltTickWorldHost.Bind.BindReleaseAndRebindLeaveTheTwoBindTablesEqual` (no push recorded; measured
 2026-10-16). An occupancy write typed elsewhere has no check.
 

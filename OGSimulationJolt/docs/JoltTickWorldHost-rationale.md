@@ -165,14 +165,14 @@ the `[SimHost.Slot]` lines); the host adds the Jolt parts.
   `acquire`, and calls `publish(slot)` only when the peer is the authority, the acquire returned a slot and
   the key held none before. An acquire for a key that already holds a slot returns the same slot, and the
   authority's replicated slot must be written once.
-- **`release(key, id, pushOccupancy)`** frees the key's slot in the table, then calls
-  `pushOccupancy(slot, false)`, clears the slot's bind-table entries in the step world, logs
+- **`release(key, id, pushBodySlotOccupancy)`** frees the key's slot in the table, then calls
+  `pushBodySlotOccupancy(slot, false)`, clears the slot's bind-table entries in the step world, logs
   `[SimHost.Bind] release id=… slot=… boundBodies=… slotsInUse=…` (Warning; `slotsInUse` read after the
   table forgot the key), and mirrors the release into the shadow world (§11). It returns the slot, or
   nothing for a key that held none (then it does nothing else).
 - **Occupancy is never applied here.** A slot's bodies stay parked until the step applies the occupancy
-  command the caller pushes; `pushOccupancy` is the caller's door to that command ring (the tick driver's
-  `pushOccupancy`). The release clears the bind table on the calling thread without the lock, as the code
+  command the caller pushes; `pushBodySlotOccupancy` is the caller's door to that command ring (the tick driver's
+  `pushBodySlotOccupancy`). The release clears the bind table on the calling thread without the lock, as the code
   it replaced did (§14). A caller whose step thread can still read a released slot's bind-table entries
   needs the release under the lock.
 - `slotOf(key)` and `slotsInUse()` expose the table's two queries.

@@ -266,7 +266,7 @@ void JoltWorld::buildSlotBodies(const JoltWorldConfig& config)
 	}
 	m_nextStaticBodyIndex = 1u + m_simulatableSlots * static_cast<uint32_t>(m_template.size());
 
-	applyOccupancyToSlots(BodySlotOccupancy{}, true);
+	applyBodySlotOccupancyToSlots(BodySlotOccupancy{}, true);
 }
 
 JPH::BodyID JoltWorld::slotBodyId(uint32_t slot, uint32_t templateIndex) const
@@ -397,7 +397,7 @@ void JoltWorld::saveInto(JoltStateSlot& slot, SimTick tick)
 		return;
 	}
 	slot.byteCount = static_cast<uint32_t>(m_recorder.bytesWritten());
-	slot.sidecar = ConfigSidecar{ m_appliedOccupancy, m_shapeEnables.bits() };
+	slot.sidecar = ConfigSidecar{ m_appliedBodySlotOccupancy, m_shapeEnables.bits() };
 	slot.stateHash = liveStateHash();
 	slot.tick = tick;
 	slot.valid = true;
@@ -454,7 +454,7 @@ bool JoltWorld::restoreSlot(const JoltStateSlot& slot, RestoreUndo undo, const c
 		return false;
 	}
 
-	applyOccupancyToSlots(slot.sidecar.occupancy, true);
+	applyBodySlotOccupancyToSlots(slot.sidecar.occupancy, true);
 	m_shapeEnables.restore(slot.sidecar.shapeEnables);
 	return true;
 }
@@ -512,18 +512,18 @@ std::optional<uint64_t> JoltWorld::stateHash(SimTick tick) const
 	return slot != nullptr ? std::optional<uint64_t>(slot->stateHash) : std::nullopt;
 }
 
-void JoltWorld::applyOccupancy(const BodySlotOccupancy& occupancy)
+void JoltWorld::applyBodySlotOccupancy(const BodySlotOccupancy& occupancy)
 {
-	applyOccupancyToSlots(occupancy, false);
+	applyBodySlotOccupancyToSlots(occupancy, false);
 }
 
-void JoltWorld::applyOccupancyToSlots(const BodySlotOccupancy& occupancy, bool forceEverySlot)
+void JoltWorld::applyBodySlotOccupancyToSlots(const BodySlotOccupancy& occupancy, bool forceEverySlot)
 {
 	JPH::BodyInterface& bodyInterface = bodies();
 	for (uint32_t slot = 0; slot < m_simulatableSlots; ++slot)
 	{
 		const bool occupied = occupancy.occupied.test(slot);
-		if (!forceEverySlot && occupied == m_appliedOccupancy.occupied.test(slot))
+		if (!forceEverySlot && occupied == m_appliedBodySlotOccupancy.occupied.test(slot))
 		{
 			continue;
 		}
@@ -542,7 +542,7 @@ void JoltWorld::applyOccupancyToSlots(const BodySlotOccupancy& occupancy, bool f
 			}
 		}
 	}
-	m_appliedOccupancy = occupancy;
+	m_appliedBodySlotOccupancy = occupancy;
 }
 
 uint64_t JoltWorld::liveStateHash() const
@@ -551,7 +551,7 @@ uint64_t JoltWorld::liveStateHash() const
 	StateHash hash;
 	for (uint32_t slot = 0; slot < m_simulatableSlots; ++slot)
 	{
-		if (!m_appliedOccupancy.occupied.test(slot))
+		if (!m_appliedBodySlotOccupancy.occupied.test(slot))
 		{
 			continue;
 		}
@@ -578,7 +578,7 @@ uint64_t JoltWorld::liveStateHash() const
 			hash.f32(angular.GetZ());
 		}
 	}
-	hash.u32(static_cast<uint32_t>(m_appliedOccupancy.occupied.to_ulong()));
+	hash.u32(static_cast<uint32_t>(m_appliedBodySlotOccupancy.occupied.to_ulong()));
 	return hash.value();
 }
 

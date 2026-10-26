@@ -21,7 +21,7 @@ exactly what the body adapter writes and binds.
 Every read goes through the free functions the body adapter uses (`joltBodyTransformOf`,
 `joltBodyStateOf`, `joltBodyMassOf`, `joltBodyInertiaOf`; `JoltPhysicsBodyAdapter-rationale.md` §2-§4),
 so units, quaternion order and the locked-rotation inertia rule are identical. The reader's inertia is
-therefore in kg·cm² and equals the Chaos value for every brawler body
+therefore in kg·m² and equals the Chaos value (Unreal's kg·cm² × 1e-4) for every brawler body
 (`JoltPhysicsFactory.EveryBrawlerDeclarationBindsAChaosParityBody`).
 
 ## §3 `isBodyResolvable` means bound

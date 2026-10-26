@@ -15,10 +15,8 @@
 #include <Jolt/Core/Reference.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
-#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 
@@ -27,7 +25,7 @@
 #include "glm/gtc/quaternion.hpp"
 #include "glm/mat3x3.hpp"
 #include "OGSimulation/OGAssert.h"
-#include "OGSimulationJolt/JoltUnits.h"
+#include "OGSimulationJolt/JoltFrame.h"
 
 namespace
 {
@@ -63,7 +61,7 @@ namespace
 
 		void operator()(const StaticBox& box) const { hash.vec3(box.halfExtents); }
 		void operator()(const StaticSphere& sphere) const { hash.f32(sphere.radius); }
-		void operator()(const StaticCapsuleZ& capsule) const { hash.f32(capsule.radius); hash.f32(capsule.totalHalfHeight); }
+		void operator()(const StaticCapsule& capsule) const { hash.f32(capsule.radius); hash.f32(capsule.totalHalfHeight); }
 		void operator()(const StaticConvexHull& hull) const
 		{
 			hash.u32(static_cast<uint32_t>(hull.points.size()));
@@ -134,7 +132,7 @@ namespace
 		const glm::mat3 rotation(axisX / scale.x, axisY / scale.y, axisZ / scale.z);
 		const glm::quat quaternion = glm::normalize(glm::quat_cast(rotation));
 		placement.rotation = JPH::Quat(quaternion.x, quaternion.y, quaternion.z, quaternion.w).Normalized();
-		placement.positionMetres = joltUnits::centimetresToMetres(glm::vec3(localToWorld[3]));
+		placement.positionMetres = JPH::Vec3(localToWorld[3].x, localToWorld[3].y, localToWorld[3].z);
 		placement.scale = JPH::Vec3(scale.x, scale.y, scale.z);
 		placement.rigid = std::abs(scale.x - 1.f) <= kRigidScaleTolerance && std::abs(scale.y - 1.f) <= kRigidScaleTolerance
 			&& std::abs(scale.z - 1.f) <= kRigidScaleTolerance;
@@ -145,39 +143,38 @@ namespace
 	{
 		const JoltStaticWorldBuilderOptions& options;
 
-		float convexRadiusForMinExtentCm(float minFullExtentCm) const
+		float convexRadiusForMinExtent(float minFullExtent) const
 		{
-			const float radiusCm = std::min(options.convexRadiusFractionOfMinExtent * minFullExtentCm, options.maxConvexRadiusCm);
-			return joltUnits::centimetresToMetres(std::max(radiusCm, 0.f));
+			const float radius = std::min(options.convexRadiusFractionOfMinExtent * minFullExtent, options.maxConvexRadius);
+			return std::max(radius, 0.f);
 		}
 
 		JPH::Shape::ShapeResult operator()(const StaticBox& box) const
 		{
-			const float minFullExtentCm = 2.f * std::min({ box.halfExtents.x, box.halfExtents.y, box.halfExtents.z });
-			return JPH::BoxShapeSettings(joltUnits::centimetresToMetres(box.halfExtents), convexRadiusForMinExtentCm(minFullExtentCm)).Create();
+			const float minFullExtent = 2.f * std::min({ box.halfExtents.x, box.halfExtents.y, box.halfExtents.z });
+			return JPH::BoxShapeSettings(JPH::Vec3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z), convexRadiusForMinExtent(minFullExtent)).Create();
 		}
 
 		JPH::Shape::ShapeResult operator()(const StaticSphere& sphere) const
 		{
-			return JPH::SphereShapeSettings(joltUnits::centimetresToMetres(sphere.radius)).Create();
+			return JPH::SphereShapeSettings(sphere.radius).Create();
 		}
 
-		JPH::Shape::ShapeResult operator()(const StaticCapsuleZ& capsule) const
+		JPH::Shape::ShapeResult operator()(const StaticCapsule& capsule) const
 		{
 			if (capsule.totalHalfHeight < capsule.radius)
 			{
 				JPH::Shape::ShapeResult result;
-				result.SetError("StaticCapsuleZ::totalHalfHeight is less than its radius");
+				result.SetError("StaticCapsule::totalHalfHeight is less than its radius");
 				return result;
 			}
-			const float cylinderHalfHeight = joltUnits::centimetresToMetres(capsule.totalHalfHeight - capsule.radius);
-			const float radius = joltUnits::centimetresToMetres(capsule.radius);
+			const float cylinderHalfHeight = capsule.totalHalfHeight - capsule.radius;
+			const float radius = capsule.radius;
 			if (cylinderHalfHeight <= 0.f)
 			{
 				return JPH::SphereShapeSettings(radius).Create();
 			}
-			const JPH::Quat yAxisToZAxis = JPH::Quat::sRotation(JPH::Vec3::sAxisX(), 0.5f * JPH::JPH_PI);
-			return JPH::RotatedTranslatedShapeSettings(JPH::Vec3::sZero(), yAxisToZAxis, new JPH::CapsuleShapeSettings(cylinderHalfHeight, radius)).Create();
+			return joltFrame::capsuleShapeFromSettings(cylinderHalfHeight, radius);
 		}
 
 		JPH::Shape::ShapeResult operator()(const StaticConvexHull& hull) const
@@ -194,13 +191,13 @@ namespace
 			glm::vec3 upper = hull.points.front();
 			for (const glm::vec3& point : hull.points)
 			{
-				points.push_back(joltUnits::centimetresToMetres(point));
+				points.push_back(JPH::Vec3(point.x, point.y, point.z));
 				lower = glm::min(lower, point);
 				upper = glm::max(upper, point);
 			}
 			const glm::vec3 extent = upper - lower;
-			const float minFullExtentCm = std::min({ extent.x, extent.y, extent.z });
-			return JPH::ConvexHullShapeSettings(points, convexRadiusForMinExtentCm(minFullExtentCm)).Create();
+			const float minFullExtent = std::min({ extent.x, extent.y, extent.z });
+			return JPH::ConvexHullShapeSettings(points, convexRadiusForMinExtent(minFullExtent)).Create();
 		}
 
 		JPH::Shape::ShapeResult operator()(const StaticTriangleMesh& mesh) const
@@ -224,7 +221,7 @@ namespace
 			for (const glm::vec3& vertex : mesh.vertices)
 			{
 				JPH::Float3 stored;
-				joltUnits::centimetresToMetres(vertex).StoreFloat3(&stored);
+				JPH::Vec3(vertex.x, vertex.y, vertex.z).StoreFloat3(&stored);
 				vertices.push_back(stored);
 			}
 			JPH::IndexedTriangleList triangles;
@@ -475,7 +472,7 @@ StaticWorldBuildReport JoltStaticWorldBuilder::build(const StaticWorldDescriptio
 	std::snprintf(summary, sizeof(summary),
 		"JoltStaticWorldBuilder: built %u of %u shapes (box=%u sphere=%u capsule=%u convex=%u trimesh=%u) into %u static bodies (%u groups, %u chunks, %u split) in %.4f s; skipped invalid=%u noLayer=%u; zeroSurface=%u duplicateKeys=%u approximatedScale=%u",
 		m_stats.shapesBuilt, static_cast<unsigned>(description.shapes.size()),
-		report.countOf<StaticBox>(), report.countOf<StaticSphere>(), report.countOf<StaticCapsuleZ>(), report.countOf<StaticConvexHull>(),
+		report.countOf<StaticBox>(), report.countOf<StaticSphere>(), report.countOf<StaticCapsule>(), report.countOf<StaticConvexHull>(),
 		report.countOf<StaticTriangleMesh>(), static_cast<unsigned>(m_stats.bodies.size()), m_stats.groups, m_stats.chunks,
 		m_stats.chunksSplitIntoSingles, report.buildSeconds, m_stats.skippedInvalidShape, m_stats.skippedNoLayer, m_stats.zeroSurfaceElements,
 		m_stats.duplicateStableKeys, m_stats.approximatedScales);

@@ -96,7 +96,7 @@ struct JoltTickWorldHostConfig
 	bool isAuthority = false;
 	bool runInline = false;
 	uint32_t clientRingDepthTicks = static_cast<uint32_t>(TimeConfig{}.rollbackWindowHardCap) + 2u;
-	glm::vec3 gravity = JoltWorldConfig{}.gravityCmPerS2;
+	glm::vec3 gravity = JoltWorldConfig{}.gravity;
 	bool contactCounts = false;
 	uint32_t mappedCategories = 0u;
 	JoltRuntime::LogFn log = nullptr;
@@ -604,7 +604,7 @@ public:
 
 				glm::mat4 transform = pose->hasRotation != 0u ? glm::mat4_cast(pose->rotation)
 				                                              : m_worlds.shadowBodyAdapter->getBodyTransform(body);
-				transform[3] = glm::vec4(pose->positionCm, 1.f);
+				transform[3] = glm::vec4(pose->position, 1.f);
 				m_worlds.shadowBodyAdapter->setBodyTransform(body, transform);
 
 				if constexpr (kDiagnostics)

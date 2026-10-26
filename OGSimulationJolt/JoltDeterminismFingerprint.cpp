@@ -53,7 +53,7 @@ namespace
 	{
 		SlotBodyTemplate capsule;
 		capsule.descriptor.body = BodyDescriptor{ .simulatePhysics = true, .enableGravity = true, .isRoot = true, .lockRotation = true };
-		capsule.descriptor.shapes = { ShapeDescriptor{ CapsuleGeometry{ 42.f, 96.f },
+		capsule.descriptor.shapes = { ShapeDescriptor{ CapsuleGeometry{ 0.42f, 0.96f },
 			CollisionCategories{ kProbeCharacterCategory }, CollisionCategories{ kProbeCharacterCategory | kProbeWorldCategory } } };
 
 		const JoltLayerKey floorKey{ JoltBroadPhaseClass::Static, kProbeWorldCategory, kProbeCharacterCategory };
@@ -71,7 +71,7 @@ namespace
 
 		JoltWorld world(runtime, config, nullptr);
 
-		JPH::BodyCreationSettings floor(new JPH::BoxShape(JPH::Vec3(5.f, 5.f, 0.5f)), JPH::RVec3(0.f, 0.f, -0.5f),
+		JPH::BodyCreationSettings floor(new JPH::BoxShape(JPH::Vec3(5.f, 0.5f, 5.f)), JPH::RVec3(0.f, -0.5f, -0.f),
 			JPH::Quat::sIdentity(), JPH::EMotionType::Static, world.layers().layerOf(floorKey));
 		const JPH::BodyID floorId = world.createStaticBody(floor);
 		world.bodies().AddBody(floorId, JPH::EActivation::DontActivate);
@@ -81,8 +81,8 @@ namespace
 		occupancy.occupied.set(0);
 		occupancy.occupied.set(1);
 		world.applyBodySlotOccupancy(occupancy);
-		world.bodies().SetPosition(world.slotBodyId(0, 0), JPH::RVec3(-0.40f, 0.f, 1.0f), JPH::EActivation::Activate);
-		world.bodies().SetPosition(world.slotBodyId(1, 0), JPH::RVec3(0.40f, 0.05f, 1.3f), JPH::EActivation::Activate);
+		world.bodies().SetPosition(world.slotBodyId(0, 0), JPH::RVec3(0.f, 1.f, 0.4f), JPH::EActivation::Activate);
+		world.bodies().SetPosition(world.slotBodyId(1, 0), JPH::RVec3(0.05f, 1.3f, -0.4f), JPH::EActivation::Activate);
 
 		for (uint32_t tick = 0; tick < kProbeTicks; ++tick)
 		{

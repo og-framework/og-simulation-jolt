@@ -40,8 +40,15 @@ must be destroyed before the matching release.
 - **Settings:** Jolt's defaults, with one collision step per update (the argument to the update call in
   `step`) and one changed setting, the restitution velocity threshold (§12). Guard G-01 forbids
   touching mDeterministicSimulation (vendored Jolt's physics settings) or any other setting.
-- **Gravity:** `JoltWorldConfig::gravityCmPerS2` converted once, in the constructor, through
-  `joltUnits::centimetresToMetres` (`JoltUnits-rationale.md`).
+- **Gravity:** `JoltWorldConfig::gravity` handed to Jolt once, in the constructor, unconverted (both are
+  metres). Its default is -9.8 m/s² along the frame's up, written
+  `simFrame::withHeight(glm::vec3(0.f), -9.8f)`. That keeps +0 in the other two components, the bits of
+  the `{ 0.f, 0.f, -980.f }` literal it replaced in centimetres; the shorter `simFrame::kUp * -9.8f`
+  gives -0 there (0 × -9.8 is -0), which can
+  change a body's sign of zero (a -0 velocity component plus +0 is +0, plus -0 stays -0). A
+  `static_assert` after `JoltWorldConfig` checks the up component and that both others are +0; written
+  the `kUp` way, it fails to compile (measured 2026-10-25). `JoltTickWorldHostConfig::gravity` copies
+  this default.
 - **Combine rules:** the constructor sets the physics system's friction and restitution combine
   functions to `joltBodyDefaults::combineFrictionAverageExceptRoots` / `combineRestitutionAverage`,
   Chaos's effective rule for every pair, statics included (`JoltBodyDefaults-rationale.md` §2), with
@@ -73,10 +80,11 @@ world.
   `createStaticBody`; a body created with Jolt's automatic ids could pick up the free index 0, so all
   bodies are created through the world (`JoltWorld.BodyIdsAreNeverZero` checks every body).
 - **Shape.** The template's single shape (`ShapeDescriptor`; multi-shape slot bodies fail an
-  `OG_CHECK`) is converted from centimetres: sphere, box (convex radius capped by the smallest half
+  `OG_CHECK`) is built in metres, unconverted: sphere, box (convex radius capped by the smallest half
   extent) or capsule. `CapsuleGeometry::halfHeight` is the total half height, hemispheres included, and
-  Jolt's capsule is Y-up with a cylinder half height, so the capsule is built with
-  `halfHeight - radius` and rotated a quarter turn about X to stand along Z.
+  Jolt's capsule lies along its local Y with a cylinder half height, so the capsule is built with
+  `halfHeight - radius` through `joltFrame::capsuleShape`, a plain capsule along the frame's up, +Y
+  (`JoltFrame-rationale.md`).
 - **Body settings.** Dynamic when `BodyDescriptor::simulatePhysics`, else kinematic; sleeping off on
   every slot body (a sleeping body would make the active set history-dependent); rotation locked to
   translation-only degrees of freedom when `BodyDescriptor::lockRotation`. Materials, damping, mass
@@ -86,7 +94,7 @@ world.
   `BodyDescriptor::isRoot`. The friction combine reads that mark (`JoltBodyDefaults-rationale.md` §5),
   so a root's contacts are frictionless from the body's creation, before any bind and in a world that
   never binds, such as the determinism fingerprint's. The factory's bind keeps it.
-- **Parking position.** Every slot body starts at `JoltWorldConfig::parkingPositionCm`, on the PARKED
+- **Parking position.** Every slot body starts at `JoltWorldConfig::parkingPosition`, on the PARKED
   layer with gravity factor 0.
 
 ## §4 Occupancy
@@ -218,11 +226,12 @@ the collision solver (PBDCollisionContainerSolver.cpp), so 1000 × 1/60 = 16.67 
 60 Hz tick, compared the same way (restitution only when the approach is faster than the threshold).
 No game ini or console variable overrides either value.
 
-So the world sets mMinVelocityForRestitution from `JoltWorldConfig::minVelocityForRestitutionCmPerS`,
-converted once through `joltUnits::centimetresToMetres`, and the configuration's default is
-`kChaosParityMinVelocityForRestitutionCmPerS` (1000 cm/s² × 1/60 s). The value is a velocity, not
+So the world sets mMinVelocityForRestitution from `JoltWorldConfig::minVelocityForRestitution`,
+unconverted (both are metres), and the configuration's default is `kChaosParityMinVelocityForRestitution`
+(10 m/s² × 1/60 s, Chaos's 1000 cm/s² × 1/60 s). Chaos's 1000 cm/s² is `kChaosRestitutionThreshold`,
+10 m/s². The value is a velocity, not
 Chaos's acceleration, because the world's step length is fixed by the host and never seen by the
-constructor; a host that steps at another rate (a 120 Hz tick) must pass 1000 × its step.
+constructor; a host that steps at another rate (a 120 Hz tick) must pass 10 m/s² × its step.
 
 The setting is not in a snapshot, so like the other world settings it must be the same on every peer;
 it comes from the configuration, which every peer builds identically.
@@ -237,7 +246,7 @@ Parity row for gate 22:
 
 | Setting | Chaos (today) | Jolt world | Verdict |
 |---|---|---|---|
-| Restitution velocity threshold | 1000 cm/s² × dt = 16.67 cm/s at 60 Hz | `kChaosParityMinVelocityForRestitutionCmPerS` = 16.67 cm/s | MATCH at 60 Hz |
+| Restitution velocity threshold | 1000 cm/s² × dt = 16.67 cm/s at 60 Hz | `kChaosParityMinVelocityForRestitution` = 0.1667 m/s | MATCH at 60 Hz |
 
 Note for gate 22: Chaos combines friction and restitution with Average, so the capsule (a 0 / 0
 material) against a default static already gets friction 0.35 and restitution 0.15 in Chaos; "0/0

@@ -8,7 +8,6 @@
 
 #include "OGSimulationJolt/JoltBodyUserData.h"
 #include "OGSimulationJolt/JoltDefineChecks.h"
-#include "OGSimulationJolt/JoltUnits.h"
 #include "OGSimulationJolt/JoltWorld.h"
 #include "OGSimulationJolt/OGJoltExport.h"
 
@@ -23,44 +22,21 @@
 #include "OGSimulation/PhysicsBodyAdapter.h"
 #include "OGSimulation/PhysicsBodyState.h"
 
-namespace joltSeamUnits
+namespace joltSeam
 {
-	inline constexpr float kMetresPerCentimetre = joltUnits::kMetresPerCentimetre;
-	inline constexpr float kCentimetresPerMetre = 100.f;
-	inline constexpr float kSquareMetresPerSquareCentimetre = kMetresPerCentimetre * kMetresPerCentimetre;
-	inline constexpr float kSquareCentimetresPerSquareMetre = kCentimetresPerMetre * kCentimetresPerMetre;
-
 	inline JPH::Vec3 toJolt(const glm::vec3& value) { return JPH::Vec3(value.x, value.y, value.z); }
 	inline glm::vec3 toGlm(JPH::Vec3Arg value) { return glm::vec3(value.GetX(), value.GetY(), value.GetZ()); }
 
-	inline JPH::Vec3 centimetreVectorToJolt(const glm::vec3& centimetres) { return joltUnits::centimetresToMetres(centimetres); }
-	inline glm::vec3 metreVectorToSeam(JPH::Vec3Arg metres) { return toGlm(metres) * kCentimetresPerMetre; }
-
-	inline JPH::Vec3 torqueToJolt(const glm::vec3& kilogramSquareCentimetresPerSecondSquared)
-	{
-		return toJolt(kilogramSquareCentimetresPerSecondSquared) * kSquareMetresPerSquareCentimetre;
-	}
-
-	inline JPH::Vec3 inertiaToJolt(const glm::vec3& kilogramSquareCentimetres)
-	{
-		return toJolt(kilogramSquareCentimetres) * kSquareMetresPerSquareCentimetre;
-	}
-
-	inline glm::vec3 inertiaToSeam(JPH::Vec3Arg kilogramSquareMetres)
-	{
-		return toGlm(kilogramSquareMetres) * kSquareCentimetresPerSquareMetre;
-	}
-
 	inline JPH::Quat rotationToJolt(const glm::quat& rotation) { return JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w); }
 	inline glm::quat rotationToSeam(JPH::QuatArg rotation) { return glm::quat(rotation.GetW(), rotation.GetX(), rotation.GetY(), rotation.GetZ()); }
-} // namespace joltSeamUnits
+} // namespace joltSeam
 
 class JoltBodyBindTable
 {
 public:
 	OGSIMULATIONJOLT_API JoltBodyBindTable(uint32_t simulatableSlots, uint32_t bodiesPerSlot);
 
-	OGSIMULATIONJOLT_API void bind(BodyId bodyId, const JoltBodyBinding& binding, const glm::vec3& lockedRotationInertiaKilogramSquareCentimetres);
+	OGSIMULATIONJOLT_API void bind(BodyId bodyId, const JoltBodyBinding& binding, const glm::vec3& lockedRotationInertiaKilogramSquareMetres);
 	OGSIMULATIONJOLT_API void releaseSlot(uint32_t slot);
 
 	[[nodiscard]] OGSIMULATIONJOLT_API bool isBound(BodyId bodyId) const;
@@ -88,7 +64,7 @@ public:
 
 	[[nodiscard]] OGSIMULATIONJOLT_API glm::mat4 getBodyTransform(BodyId bodyId) const;
 	OGSIMULATIONJOLT_API void setBodyTransform(BodyId bodyId, const glm::mat4& transform);
-	OGSIMULATIONJOLT_API void setBodyPose(BodyId bodyId, const glm::vec3& positionCm, const glm::quat& rotation);
+	OGSIMULATIONJOLT_API void setBodyPose(BodyId bodyId, const glm::vec3& position, const glm::quat& rotation);
 	OGSIMULATIONJOLT_API void addBodyTorque(BodyId bodyId, const glm::vec3& torque);
 	OGSIMULATIONJOLT_API void setBodyAngularVelocity(BodyId bodyId, const glm::vec3& velocity);
 	OGSIMULATIONJOLT_API void setBodyLinearVelocity(BodyId bodyId, const glm::vec3& velocity);

@@ -26,7 +26,7 @@ struct JoltStaticWorldBuilderOptions
 {
 	uint32_t maxShapesPerChunk = 256;
 	float convexRadiusFractionOfMinExtent = 0.05f;
-	float maxConvexRadiusCm = 10.f;
+	float maxConvexRadius = 0.1f;
 	std::optional<JoltStaticSurface> surfaceForZeroFrictionAndRestitution = kUnrealDefaultPhysicalMaterialSurface;
 };
 

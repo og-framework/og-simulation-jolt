@@ -16,9 +16,9 @@ namespace
 {
 	constexpr uint32_t kRotationDofMask = uint32_t(JPH::EAllowedDOFs::RotationX) | uint32_t(JPH::EAllowedDOFs::RotationY) | uint32_t(JPH::EAllowedDOFs::RotationZ);
 
-	glm::mat4 composeTransform(const glm::vec3& positionCm, const glm::quat& rotation)
+	glm::mat4 composeTransform(const glm::vec3& position, const glm::quat& rotation)
 	{
-		return glm::translate(glm::mat4(1.f), positionCm) * glm::mat4_cast(rotation);
+		return glm::translate(glm::mat4(1.f), position) * glm::mat4_cast(rotation);
 	}
 }
 
@@ -39,7 +39,7 @@ std::optional<uint32_t> JoltBodyBindTable::indexOf(BodyId bodyId) const
 	return bodyId.value - 1u;
 }
 
-void JoltBodyBindTable::bind(BodyId bodyId, const JoltBodyBinding& binding, const glm::vec3& lockedRotationInertiaKilogramSquareCentimetres)
+void JoltBodyBindTable::bind(BodyId bodyId, const JoltBodyBinding& binding, const glm::vec3& lockedRotationInertiaKilogramSquareMetres)
 {
 	const std::optional<uint32_t> index = indexOf(bodyId);
 	OG_CHECK(index.has_value(), "JoltBodyBindTable::bind - the BodyId is not a slot body of this world");
@@ -48,7 +48,7 @@ void JoltBodyBindTable::bind(BodyId bodyId, const JoltBodyBinding& binding, cons
 		return;
 	}
 	m_bindings[*index] = binding;
-	m_lockedRotationInertia[*index] = lockedRotationInertiaKilogramSquareCentimetres;
+	m_lockedRotationInertia[*index] = lockedRotationInertiaKilogramSquareMetres;
 }
 
 void JoltBodyBindTable::releaseSlot(uint32_t slot)
@@ -88,7 +88,7 @@ glm::mat4 joltBodyTransformOf(const JoltWorld& world, BodyId bodyId)
 	JPH::RVec3 position;
 	JPH::Quat rotation;
 	world.bodies().GetPositionAndRotation(JoltPhysicsBodyAdapter::joltBodyIdOf(bodyId), position, rotation);
-	return composeTransform(joltSeamUnits::metreVectorToSeam(JPH::Vec3(position)), joltSeamUnits::rotationToSeam(rotation));
+	return composeTransform(joltSeam::toGlm(JPH::Vec3(position)), joltSeam::rotationToSeam(rotation));
 }
 
 PhysicsBodyState joltBodyStateOf(const JoltWorld& world, BodyId bodyId)
@@ -100,10 +100,10 @@ PhysicsBodyState joltBodyStateOf(const JoltWorld& world, BodyId bodyId)
 	bodies.GetPositionAndRotation(id, position, rotation);
 
 	PhysicsBodyState state;
-	state.position = joltSeamUnits::metreVectorToSeam(JPH::Vec3(position));
-	state.rotation = joltSeamUnits::rotationToSeam(rotation);
-	state.linearVelocity = joltSeamUnits::metreVectorToSeam(bodies.GetLinearVelocity(id));
-	state.angularVelocity = joltSeamUnits::toGlm(bodies.GetAngularVelocity(id));
+	state.position = joltSeam::toGlm(JPH::Vec3(position));
+	state.rotation = joltSeam::rotationToSeam(rotation);
+	state.linearVelocity = joltSeam::toGlm(bodies.GetLinearVelocity(id));
+	state.angularVelocity = joltSeam::toGlm(bodies.GetAngularVelocity(id));
 	return state;
 }
 
@@ -134,7 +134,7 @@ glm::vec3 joltBodyInertiaOf(const JoltWorld& world, const JoltBodyBindTable& bin
 	OG_CHECK(rotationDofs == kRotationDofMask,
 		"joltBodyInertiaOf - a body with SOME rotation axes locked has a singular inverse inertia; M1 bodies lock all three or none");
 	const JPH::Mat44 inertia = body.GetInverseInertia().Inversed3x3();
-	return joltSeamUnits::inertiaToSeam(JPH::Vec3(inertia(0, 0), inertia(1, 1), inertia(2, 2)));
+	return joltSeam::toGlm(JPH::Vec3(inertia(0, 0), inertia(1, 1), inertia(2, 2)));
 }
 
 JoltPhysicsBodyAdapter::JoltPhysicsBodyAdapter(JoltWorld& world)
@@ -165,20 +165,20 @@ void JoltPhysicsBodyAdapter::setBodyTransform(BodyId bodyId, const glm::mat4& tr
 	{
 		return;
 	}
-	const glm::vec3 positionCm(transform[3]);
+	const glm::vec3 position(transform[3]);
 	const glm::quat rotation = glm::normalize(glm::quat_cast(glm::mat3(transform)));
-	m_world.bodies().SetPositionAndRotation(joltBodyIdOf(bodyId), JPH::RVec3(joltSeamUnits::centimetreVectorToJolt(positionCm)),
-		joltSeamUnits::rotationToJolt(rotation), JPH::EActivation::DontActivate);
+	m_world.bodies().SetPositionAndRotation(joltBodyIdOf(bodyId), JPH::RVec3(joltSeam::toJolt(position)),
+		joltSeam::rotationToJolt(rotation), JPH::EActivation::DontActivate);
 }
 
-void JoltPhysicsBodyAdapter::setBodyPose(BodyId bodyId, const glm::vec3& positionCm, const glm::quat& rotation)
+void JoltPhysicsBodyAdapter::setBodyPose(BodyId bodyId, const glm::vec3& position, const glm::quat& rotation)
 {
 	if (!isSlotBody(bodyId))
 	{
 		return;
 	}
-	m_world.bodies().SetPositionAndRotation(joltBodyIdOf(bodyId), JPH::RVec3(joltSeamUnits::centimetreVectorToJolt(positionCm)),
-		joltSeamUnits::rotationToJolt(rotation), JPH::EActivation::DontActivate);
+	m_world.bodies().SetPositionAndRotation(joltBodyIdOf(bodyId), JPH::RVec3(joltSeam::toJolt(position)),
+		joltSeam::rotationToJolt(rotation), JPH::EActivation::DontActivate);
 }
 
 void JoltPhysicsBodyAdapter::addBodyTorque(BodyId bodyId, const glm::vec3& torque)
@@ -187,7 +187,7 @@ void JoltPhysicsBodyAdapter::addBodyTorque(BodyId bodyId, const glm::vec3& torqu
 	{
 		return;
 	}
-	m_world.bodies().AddTorque(joltBodyIdOf(bodyId), joltSeamUnits::torqueToJolt(torque));
+	m_world.bodies().AddTorque(joltBodyIdOf(bodyId), joltSeam::toJolt(torque));
 }
 
 void JoltPhysicsBodyAdapter::setBodyAngularVelocity(BodyId bodyId, const glm::vec3& velocity)
@@ -196,7 +196,7 @@ void JoltPhysicsBodyAdapter::setBodyAngularVelocity(BodyId bodyId, const glm::ve
 	{
 		return;
 	}
-	m_world.bodies().SetAngularVelocity(joltBodyIdOf(bodyId), joltSeamUnits::toJolt(velocity));
+	m_world.bodies().SetAngularVelocity(joltBodyIdOf(bodyId), joltSeam::toJolt(velocity));
 }
 
 void JoltPhysicsBodyAdapter::setBodyLinearVelocity(BodyId bodyId, const glm::vec3& velocity)
@@ -205,7 +205,7 @@ void JoltPhysicsBodyAdapter::setBodyLinearVelocity(BodyId bodyId, const glm::vec
 	{
 		return;
 	}
-	m_world.bodies().SetLinearVelocity(joltBodyIdOf(bodyId), joltSeamUnits::centimetreVectorToJolt(velocity));
+	m_world.bodies().SetLinearVelocity(joltBodyIdOf(bodyId), joltSeam::toJolt(velocity));
 }
 
 void JoltPhysicsBodyAdapter::addBodyAcceleration(BodyId bodyId, const glm::vec3& acceleration)
@@ -219,7 +219,7 @@ void JoltPhysicsBodyAdapter::addBodyAcceleration(BodyId bodyId, const glm::vec3&
 	{
 		return;
 	}
-	m_world.bodies().AddForce(joltBodyIdOf(bodyId), joltSeamUnits::centimetreVectorToJolt(acceleration) * mass);
+	m_world.bodies().AddForce(joltBodyIdOf(bodyId), joltSeam::toJolt(acceleration) * mass);
 }
 
 void JoltPhysicsBodyAdapter::addBodyVelocityChange(BodyId bodyId, const glm::vec3& velocityChange)
@@ -228,7 +228,7 @@ void JoltPhysicsBodyAdapter::addBodyVelocityChange(BodyId bodyId, const glm::vec
 	{
 		return;
 	}
-	m_world.bodies().AddLinearVelocity(joltBodyIdOf(bodyId), joltSeamUnits::centimetreVectorToJolt(velocityChange));
+	m_world.bodies().AddLinearVelocity(joltBodyIdOf(bodyId), joltSeam::toJolt(velocityChange));
 }
 
 glm::vec3 JoltPhysicsBodyAdapter::getBodyInertiaTensor(BodyId bodyId) const

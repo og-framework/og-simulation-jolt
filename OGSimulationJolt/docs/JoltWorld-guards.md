@@ -24,7 +24,7 @@ SetPhysicsSettings block.
 (vendored Jolt), and do not change any other physics setting in that block without changing this
 guard and the world's rationale with it. The world runs Jolt's default settings with exactly two
 exceptions: mMinVelocityForRestitution, which the block sets from
-`JoltWorldConfig::minVelocityForRestitutionCmPerS` (Chaos parity, rationale §2), and one collision
+`JoltWorldConfig::minVelocityForRestitution` (Chaos parity, rationale §2), and one collision
 step per update, which is the argument to the update call in `step`.
 
 **The consequence.** mDeterministicSimulation defaults to true, and Jolt upstream has already removed

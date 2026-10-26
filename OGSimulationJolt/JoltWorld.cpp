@@ -13,15 +13,13 @@
 #include <Jolt/Physics/Body/Body.h>
 #include <Jolt/Physics/Body/BodyLockInterface.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
-#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include "OGSimulation/OGAssert.h"
 #include "OGSimulationJolt/JoltBodyDefaults.h"
 #include "OGSimulationJolt/JoltFpEnvironment.h"
+#include "OGSimulationJolt/JoltFrame.h"
 #include "OGSimulationJolt/JoltPhysicsBodyAdapter.h"
-#include "OGSimulationJolt/JoltUnits.h"
 
 namespace
 {
@@ -59,24 +57,23 @@ namespace
 	{
 		if (const SphereGeometry* sphere = std::get_if<SphereGeometry>(&geometry))
 		{
-			return new JPH::SphereShape(joltUnits::centimetresToMetres(sphere->radius));
+			return new JPH::SphereShape(sphere->radius);
 		}
 		if (const BoxGeometry* box = std::get_if<BoxGeometry>(&geometry))
 		{
-			const JPH::Vec3 halfExtents = joltUnits::centimetresToMetres(box->halfExtents);
+			const JPH::Vec3 halfExtents = joltSeam::toJolt(box->halfExtents);
 			const float convexRadius = std::min(JPH::cDefaultConvexRadius, halfExtents.ReduceMin());
 			return new JPH::BoxShape(halfExtents, convexRadius);
 		}
 		const CapsuleGeometry& capsule = std::get<CapsuleGeometry>(geometry);
-		const float radius = joltUnits::centimetresToMetres(capsule.radius);
-		const float cylinderHalfHeight = joltUnits::centimetresToMetres(capsule.halfHeight - capsule.radius);
+		const float radius = capsule.radius;
+		const float cylinderHalfHeight = capsule.halfHeight - capsule.radius;
 		OG_CHECK(cylinderHalfHeight >= 0.f, "JoltWorld: CapsuleGeometry::halfHeight is the TOTAL half height and must be >= radius");
 		if (cylinderHalfHeight <= 0.f)
 		{
 			return new JPH::SphereShape(radius);
 		}
-		const JPH::Quat yAxisToZAxis = JPH::Quat::sRotation(JPH::Vec3::sAxisX(), 0.5f * JPH::JPH_PI);
-		return new JPH::RotatedTranslatedShape(JPH::Vec3::sZero(), yAxisToZAxis, new JPH::CapsuleShape(cylinderHalfHeight, radius));
+		return joltFrame::capsuleShape(cylinderHalfHeight, radius);
 	}
 
 	constexpr const char* overflowName(JoltContactOverflow kind)
@@ -200,9 +197,9 @@ JoltWorld::JoltWorld(JoltRuntime& runtime, const JoltWorldConfig& config, JoltWo
 		m_layers.broadPhaseLayers(), m_layers.objectVsBroadPhaseFilter(), m_layers.objectLayerPairFilter());
 	// ⛔G-01  docs/JoltWorld-guards.md
 	JPH::PhysicsSettings settings = m_physics.GetPhysicsSettings();
-	settings.mMinVelocityForRestitution = joltUnits::centimetresToMetres(config.minVelocityForRestitutionCmPerS);
+	settings.mMinVelocityForRestitution = config.minVelocityForRestitution;
 	m_physics.SetPhysicsSettings(settings);
-	m_physics.SetGravity(joltUnits::centimetresToMetres(config.gravityCmPerS2));
+	m_physics.SetGravity(joltSeam::toJolt(config.gravity));
 	m_physics.SetCombineFriction(&joltBodyDefaults::combineFrictionAverageExceptRoots);
 	m_physics.SetCombineRestitution(&joltBodyDefaults::combineRestitutionAverage);
 
@@ -227,7 +224,7 @@ JoltWorld::~JoltWorld()
 void JoltWorld::buildSlotBodies(const JoltWorldConfig& config)
 {
 	JPH::BodyInterface& bodyInterface = bodies();
-	const JPH::RVec3 parkingPosition = joltUnits::centimetresToMetres(config.parkingPositionCm);
+	const JPH::RVec3 parkingPosition = joltSeam::toJolt(config.parkingPosition);
 
 	std::vector<JPH::RefConst<JPH::Shape>> shapes;
 	for (const SlotBodyTemplate& slotTemplate : config.slotTemplate)

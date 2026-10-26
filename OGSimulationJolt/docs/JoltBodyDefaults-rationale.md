@@ -31,7 +31,7 @@ defaults those fields start from.
 | `kAngularDamping` | 0.0 | FBodyInstance constructor, AngularDamping(0.0) (BodyInstance.cpp:400). Measured: 0.0 |
 | `kMaxAngularVelocityDegreesPerSecond` / `kMaxAngularVelocityRadiansPerSecond` | 3600 °/s = 62.8319 rad/s | UPhysicsSettingsCore::MaxAngularVelocity(3600) (PhysicsCore/Private/PhysicsSettingsCore.cpp:43); the project's DefaultEngine.ini does not override it. FBodyInstance reads it at body creation (BodyInstance.cpp:415, :3583-3586, applied at :4536) and Chaos clamps the angular speed to it during integration (Chaos/Private/Chaos/PBDRigidsEvolutionGBF.cpp:873-877; the clamp itself is :874-876) |
 | `kMaxLinearVelocityMetresPerSecond` | 500 m/s | **Deviation.** Chaos has no linear speed cap for these bodies (the particle's MaxLinearSpeedSq starts at the numeric maximum, Chaos/Public/Chaos/ParticleHandle.h:116). Jolt needs a finite cap; 500 m/s (50,000 cm/s) is Jolt's own value, set explicitly, and is about 25 times the game's fastest body speed (the 2,000 cm/s knockback) |
-| `kDensityGramsPerCubicCentimetre` / `kDensityKilogramsPerCubicCentimetre` | 1 g/cm³ = 0.001 kg/cm³ | UPhysicalMaterial Density = 1.0 for both materials above (PhysicalMaterial.cpp:48; measured 1.0 on both); converted g→kg as UE does (Engine/Private/PhysicsEngine/BodyUtils.cpp:29-45) |
+| `kDensityKilogramsPerCubicMetre` | 1000 kg/m³ = 1 g/cm³ | UPhysicalMaterial Density = 1.0 g/cm³ for both materials above (PhysicalMaterial.cpp:48; measured 1.0 on both); converted g→kg as UE does (Engine/Private/PhysicsEngine/BodyUtils.cpp:29-45), per cubic metre, og-simulation's length unit. A `static_assert` pins the bits of 1000.f, the value the metre flip gave the constant |
 | `kRaiseMassToPower` | 0.75 | UPhysicalMaterial RaiseMassToPower = 0.75 (PhysicalMaterial.cpp:47), applied by BodyUtils.cpp:48-114 (the power at :63-64) |
 | `kMassScale` | 1 | FBodyInstance MassScale(1.f) (BodyInstance.cpp:403) |
 | `kMinimumMassKilograms` | 0.001 | The 1 g floor in BodyUtils.cpp:67 |
@@ -68,14 +68,16 @@ UE computes a body's mass from its collision shape at uniform density, then bend
 The shape formulas are Chaos's: sphere volume 4/3·π·r³ and inertia 2/5·m·r² (Chaos/Public/Chaos/Sphere.h:255-262,
 357-363); capsule volume π·r²·(H + 4/3·r) and inertia diag(I₁, I₁, I₃) with
 I₁ = m·(5H³ + 20H²r + 45Hr² + 32r³)/(60H + 80r), I₃ = m·r²·(15H + 16r)/(30H + 40r)
-(Chaos/Public/Chaos/Capsule.h:491-509), where H is the cylinder length. UE builds a capsule
+(Chaos/Public/Chaos/Capsule.h:491-509), where H is the cylinder length. I₃ is the term about the
+capsule's own axis, which stands along the frame's up (`JoltFrame-rationale.md`), so the function writes
+it at index `simFrame::kUpIndex` (1, Y) and I₁ at the other two. UE builds a capsule
 component's shape with H = 2·(halfHeight − radius) (Engine/Private/Components/CapsuleComponent.cpp:199),
 which is how `CapsuleGeometry::halfHeight` is read here. Box: volume x·y·z, inertia m/12·(y²+z²), … with
 full extents (not used by any brawler body).
 
-The function computes in double and returns float kg and kg·cm². For the brawler (measured at run time
-on today's Chaos build with UPrimitiveComponent GetMass / GetInertiaTensor, and equal to this function
-to 7 significant digits):
+The function computes in double and returns float kg and kg·m². For the brawler (measured at run time
+on the Chaos build with UPrimitiveComponent GetMass / GetInertiaTensor, which reports Unreal's kg·cm², and
+equal to this function to 7 significant digits; the function's kg·m² are these values × 1e-4):
 
 | Body | Mass (kg) | Inertia (kg·cm²) |
 |---|---|---|

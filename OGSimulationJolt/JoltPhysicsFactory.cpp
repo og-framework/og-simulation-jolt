@@ -93,7 +93,7 @@ JoltPhysicsFactory::PhysicalObjectResult JoltPhysicsFactory::createPhysicalObjec
 
 	applyBodyDefaults(joltId, slotTemplate, massProperties);
 	m_bodyAdapter.bindTable().bind(bodyId, JoltBodyBinding{ m_simulatableId, slotTemplate.declarationIndex },
-		massProperties.inertiaKilogramSquareCentimetres);
+		massProperties.inertiaKilogramSquareMetres);
 
 	const bool isRoot = slotTemplate.descriptor.body.isRoot;
 	PhysicalObjectResult result{ bodyId, {} };
@@ -146,7 +146,7 @@ void JoltPhysicsFactory::applyBodyDefaults(const JPH::BodyID& id, const SlotBody
 
 		JPH::MassProperties mass;
 		mass.mMass = massProperties.massKilograms;
-		mass.mInertia = JPH::Mat44::sScale(joltSeamUnits::inertiaToJolt(massProperties.inertiaKilogramSquareCentimetres));
+		mass.mInertia = JPH::Mat44::sScale(joltSeam::toJolt(massProperties.inertiaKilogramSquareMetres));
 		motion.SetMassProperties(allowedDofs, mass);
 	}
 

@@ -170,8 +170,8 @@ private:
 	};
 
 	[[nodiscard]] const VolumeEntry* volumeOf(QueryVolumeId volumeId) const;
-	[[nodiscard]] std::vector<Candidate> collideAt(const VolumeEntry& volume, const glm::vec3& positionCm, CandidatePurpose purpose) const;
-	[[nodiscard]] std::vector<Candidate> castFrom(const VolumeEntry& volume, const glm::vec3& startCm, const glm::vec3& deltaCm) const;
+	[[nodiscard]] std::vector<Candidate> collideAt(const VolumeEntry& volume, const glm::vec3& position, CandidatePurpose purpose) const;
+	[[nodiscard]] std::vector<Candidate> castFrom(const VolumeEntry& volume, const glm::vec3& start, const glm::vec3& delta) const;
 	[[nodiscard]] std::optional<JoltQueryHitKey> keyOf(const JPH::BodyID& body, uint32_t subShapeId) const;
 	[[nodiscard]] BodyId rootOf(BodyId body) const;
 	[[nodiscard]] SpatialQueryHit hitOf(const Candidate& candidate) const;

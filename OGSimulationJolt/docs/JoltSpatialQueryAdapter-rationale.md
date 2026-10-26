@@ -87,9 +87,11 @@ engine's order, which the hit loop's order dependence made a cross-peer hazard.
   sphere's hits. ⚠ This looks like an accident in the Chaos adapter; it is reproduced because M1 is
   equivalence, and it is a decision for the user whether both adapters should change.
 - **The pose is the translation of the parent transform times the offset, with the identity rotation**
-  (guard G-02), as the Chaos adapter passes. Box and capsule volumes are axis-aligned; a capsule is
-  Z-up (a Jolt capsule is Y-up, so it is wrapped in a rotated shape, as `JoltWorld` does for slot
-  bodies). Units: cm at the seam, m in Jolt, converted with `joltUnits`.
+  (guard G-02), as the Chaos adapter passes. Box and capsule volumes are axis-aligned; a capsule
+  stands along the frame's up, +Y (a Jolt capsule lies along its local Y, so it is built through
+  `joltFrame::capsuleShape`, as `JoltWorld` does for slot bodies; `JoltFrame-rationale.md`). Units: metres
+  on both sides of the seam, so positions, sizes, depths and points pass unconverted. A sphere or capsule
+  radius is floored at 1.0000001e-5 m (the 0.001 cm floor it shipped with, bit for bit).
 - **Shapes:** sphere, box (convex radius 0, so the box is exact, as the Chaos query box is), capsule
   (`CapsuleGeometry::halfHeight` is the total half height; a capsule no taller than its diameter becomes a
   sphere).
@@ -146,14 +148,16 @@ reads or writes the volume's stored parent transform, as the concept requires.
   start-penetrating, impact normal and penetration depth from the minimum translation distance, impact
   point at the deepest point. As every initial overlap has time 0, it always beats a later hit. The Jolt
   cast reproduces that with the deepest-point option on and back faces enabled (guard G-07): the result
-  is `blocked`, `fraction` 0, `startPenetrating`, `penetrationDepth` = the push-out distance in cm, and
+  is `blocked`, `fraction` 0, `startPenetrating`, `penetrationDepth` = the push-out distance in m, and
   `normal` = the push-out direction (away from the target). This is measured, for upward, downward,
   sideways and zero displacement, and against both a static and a slot body.
-- **A zero displacement** (length at most 1e-8 cm, UE's nearly-zero test) is answered by an overlap at
+- **A zero displacement** (length at most 1e-10 m, UE's nearly-zero test of 1e-8 cm) is answered by an
+  overlap at
   the start pose and reported as a start-penetrating hit, as UE does with a zero-length sweep.
 - **Fields:** `fraction` in [0, 1]; `normal` = minus the normalised Jolt penetration axis (the surface
-  normal of the target, pointing at the volume), or +Z if Jolt returns no axis (UE's fallback for an initial overlap);
-  `impactPoint` = the contact point on the target, in cm; `penetrationDepth` only when start-penetrating,
+  normal of the target, pointing at the volume), or the frame's up, `simFrame::kUp` (+Y), if Jolt
+  returns no axis (UE's fallback for an initial overlap);
+  `impactPoint` = the contact point on the target, in m; `penetrationDepth` only when start-penetrating,
   else 0; identity and categories as in §3–§4. A miss is the default `SweepHit` (not blocked,
   fraction 1).
 
@@ -192,7 +196,7 @@ it counts them only); that is host work (task 18 or the importer), and there are
 
 | Chaos adapter behaviour | Jolt adapter | |
 |---|---|---|
-| Volume shapes: sphere, box, capsule (UE collision shapes, cm) | Jolt sphere, box (convex radius 0), Z-up capsule (m) | equal |
+| Volume shapes: sphere, box, capsule (UE collision shapes, cm) | Jolt sphere, box (convex radius 0), capsule along the frame's up, +Y (m) | equal |
 | Pose: translation of parent times offset, identity rotation | same (G-02) | equal |
 | `overlap` over several volumes: the engine resets the array per call, only the last volume's hits survive | only the last volume is queried (G-01) | equal ⚠ (likely a Chaos accident; user decision) |
 | Mode: object query when the mapped search set is non-empty, else trace channel | same (G-05) | equal |

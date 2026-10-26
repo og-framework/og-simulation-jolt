@@ -19,22 +19,20 @@
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/CompoundShape.h>
-#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include "OGSimulation/OGAssert.h"
+#include "OGSimulation/SimulationFrame.h"
+#include "OGSimulationJolt/JoltFrame.h"
 #include "OGSimulationJolt/JoltPhysicsBodyAdapter.h"
 #include "OGSimulationJolt/JoltPhysicsFactory.h"
-#include "OGSimulationJolt/JoltUnits.h"
 
 namespace
 {
 	thread_local uint32_t t_worldAccessScopeDepth = 0;
 
-	constexpr float kCentimetresPerMetre = 100.f;
-	constexpr float kNearlyZeroSweepLengthCm = 1.e-8f;
+	constexpr float kNearlyZeroSweepLength = 1e-10f;
 
 	glm::vec3 translationOf(const glm::mat4& transform)
 	{
@@ -46,38 +44,32 @@ namespace
 		return glm::vec3(value.GetX(), value.GetY(), value.GetZ());
 	}
 
-	glm::vec3 toCentimetres(JPH::Vec3Arg metres)
-	{
-		return toGlm(metres) * kCentimetresPerMetre;
-	}
-
 	JPH::RefConst<JPH::Shape> queryShapeOf(const QueryGeometry& geometry)
 	{
 		if (const SphereGeometry* sphere = std::get_if<SphereGeometry>(&geometry))
 		{
 			OG_CHECK(sphere->radius > 0.f, "JoltSpatialQueryAdapter::registerVolume - a SphereGeometry volume needs a positive radius");
-			return new JPH::SphereShape(joltUnits::centimetresToMetres(std::max(sphere->radius, 0.001f)));
+			return new JPH::SphereShape(std::max(sphere->radius, 1.0000001e-5f));
 		}
 		if (const BoxGeometry* box = std::get_if<BoxGeometry>(&geometry))
 		{
-			return new JPH::BoxShape(joltUnits::centimetresToMetres(box->halfExtents), 0.f);
+			return new JPH::BoxShape(joltSeam::toJolt(box->halfExtents), 0.f);
 		}
 		const CapsuleGeometry& capsule = std::get<CapsuleGeometry>(geometry);
 		OG_CHECK(capsule.radius > 0.f, "JoltSpatialQueryAdapter::registerVolume - a CapsuleGeometry volume needs a positive radius");
-		const float radius = joltUnits::centimetresToMetres(std::max(capsule.radius, 0.001f));
-		const float cylinderHalfHeight = joltUnits::centimetresToMetres(capsule.halfHeight - capsule.radius);
+		const float radius = std::max(capsule.radius, 1.0000001e-5f);
+		const float cylinderHalfHeight = capsule.halfHeight - capsule.radius;
 		if (cylinderHalfHeight <= 0.f)
 		{
 			return new JPH::SphereShape(radius);
 		}
-		const JPH::Quat yAxisToZAxis = JPH::Quat::sRotation(JPH::Vec3::sAxisX(), 0.5f * JPH::JPH_PI);
-		return new JPH::RotatedTranslatedShape(JPH::Vec3::sZero(), yAxisToZAxis, new JPH::CapsuleShape(cylinderHalfHeight, radius));
+		return joltFrame::capsuleShape(cylinderHalfHeight, radius);
 	}
 
-	JPH::RMat44 queryPoseOf(const JPH::Shape& shape, const glm::vec3& positionCm)
+	JPH::RMat44 queryPoseOf(const JPH::Shape& shape, const glm::vec3& position)
 	{
 		// ⛔G-02  docs/JoltSpatialQueryAdapter-guards.md
-		return JPH::RMat44::sTranslation(joltUnits::centimetresToMetres(positionCm) + shape.GetCenterOfMass());
+		return JPH::RMat44::sTranslation(joltSeam::toJolt(position) + shape.GetCenterOfMass());
 	}
 
 	class JoltTraceQueryLayerFilter final : public JPH::ObjectLayerFilter
@@ -311,7 +303,7 @@ SweepHit JoltSpatialQueryAdapter::sweep(QueryVolumeId volumeId, const glm::mat4&
 
 	const glm::vec3 start = translationOf(transform * volume->offsetTransform);
 	const float length = std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
-	const std::vector<Candidate> candidates = length <= kNearlyZeroSweepLengthCm
+	const std::vector<Candidate> candidates = length <= kNearlyZeroSweepLength
 		? collideAt(*volume, start, CandidatePurpose::Sweep)
 		: castFrom(*volume, start, delta);
 	if (candidates.empty())
@@ -326,10 +318,10 @@ SweepHit JoltSpatialQueryAdapter::sweep(QueryVolumeId volumeId, const glm::mat4&
 	hit.blocked = true;
 	hit.fraction = std::clamp(nearest.fraction, 0.f, 1.f);
 	hit.startPenetrating = nearest.fraction <= 0.f;
-	hit.penetrationDepth = hit.startPenetrating ? std::max(nearest.penetrationDepth, 0.f) * kCentimetresPerMetre : 0.f;
+	hit.penetrationDepth = hit.startPenetrating ? std::max(nearest.penetrationDepth, 0.f) : 0.f;
 	const float axisLengthSquared = nearest.penetrationAxis.LengthSq();
-	hit.normal = axisLengthSquared > 1.e-12f ? toGlm(-nearest.penetrationAxis / std::sqrt(axisLengthSquared)) : glm::vec3(0.f, 0.f, 1.f);
-	hit.impactPoint = toCentimetres(nearest.contactPointOnBody);
+	hit.normal = axisLengthSquared > 1.e-12f ? toGlm(-nearest.penetrationAxis / std::sqrt(axisLengthSquared)) : simFrame::kUp;
+	hit.impactPoint = toGlm(nearest.contactPointOnBody);
 	hit.bodyId = JoltPhysicsBodyAdapter::bodyIdOf(nearest.body);
 	hit.rootBodyId = rootOf(hit.bodyId);
 	hit.objectCategories = categoriesOf(nearest.body);
@@ -374,14 +366,14 @@ const JoltSpatialQueryAdapter::VolumeEntry* JoltSpatialQueryAdapter::volumeOf(Qu
 	return volumeId.value < m_volumes.size() ? &m_volumes[volumeId.value] : nullptr;
 }
 
-std::vector<JoltSpatialQueryAdapter::Candidate> JoltSpatialQueryAdapter::collideAt(const VolumeEntry& volume, const glm::vec3& positionCm,
+std::vector<JoltSpatialQueryAdapter::Candidate> JoltSpatialQueryAdapter::collideAt(const VolumeEntry& volume, const glm::vec3& position,
 	CandidatePurpose purpose) const
 {
 	JPH::CollideShapeSettings settings;
 	settings.mBackFaceMode = JPH::EBackFaceMode::CollideWithBackFaces;
 	JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
 	const JoltQueryBodyFilter bodyFilter(*this, volume.ignoredRootBodyId);
-	const JPH::RMat44 pose = queryPoseOf(*volume.shape, positionCm);
+	const JPH::RMat44 pose = queryPoseOf(*volume.shape, position);
 
 	const QueryLayerFilters layerFilters(m_world.layers(), volume.objectMask, volume.traceCategory, purpose == CandidatePurpose::Sweep);
 	m_world.query().CollideShape(volume.shape, JPH::Vec3::sOne(), pose, settings, JPH::RVec3::sZero(), collector, {}, layerFilters.selected(), bodyFilter);
@@ -405,10 +397,10 @@ std::vector<JoltSpatialQueryAdapter::Candidate> JoltSpatialQueryAdapter::collide
 	return candidates;
 }
 
-std::vector<JoltSpatialQueryAdapter::Candidate> JoltSpatialQueryAdapter::castFrom(const VolumeEntry& volume, const glm::vec3& startCm,
-	const glm::vec3& deltaCm) const
+std::vector<JoltSpatialQueryAdapter::Candidate> JoltSpatialQueryAdapter::castFrom(const VolumeEntry& volume, const glm::vec3& start,
+	const glm::vec3& delta) const
 {
-	const JPH::RShapeCast cast(volume.shape, JPH::Vec3::sOne(), queryPoseOf(*volume.shape, startCm), joltUnits::centimetresToMetres(deltaCm));
+	const JPH::RShapeCast cast(volume.shape, JPH::Vec3::sOne(), queryPoseOf(*volume.shape, start), joltSeam::toJolt(delta));
 	JPH::ShapeCastSettings settings;
 	// ⛔G-07  docs/JoltSpatialQueryAdapter-guards.md
 	settings.SetBackFaceMode(JPH::EBackFaceMode::CollideWithBackFaces);
@@ -492,7 +484,7 @@ SpatialQueryHit JoltSpatialQueryAdapter::hitOf(const Candidate& candidate) const
 	if (candidate.key.isStatic == 0)
 	{
 		// ⛔G-08  docs/JoltSpatialQueryAdapter-guards.md
-		hit.objectPosition = toCentimetres(m_world.bodies().GetPosition(JoltPhysicsBodyAdapter::joltBodyIdOf(hit.rootBodyId)));
+		hit.objectPosition = toGlm(m_world.bodies().GetPosition(JoltPhysicsBodyAdapter::joltBodyIdOf(hit.rootBodyId)));
 		return hit;
 	}
 
@@ -507,11 +499,11 @@ SpatialQueryHit JoltSpatialQueryAdapter::hitOf(const Candidate& candidate) const
 	{
 		const JPH::CompoundShape* compound = static_cast<const JPH::CompoundShape*>(shape);
 		const JPH::CompoundShape::SubShape& element = compound->GetSubShape(candidate.key.staticElementIndex);
-		hit.objectPosition = toCentimetres(JPH::Vec3(body.GetCenterOfMassTransform() * element.GetPositionCOM()));
+		hit.objectPosition = toGlm(JPH::Vec3(body.GetCenterOfMassTransform() * element.GetPositionCOM()));
 	}
 	else
 	{
-		hit.objectPosition = toCentimetres(JPH::Vec3(body.GetCenterOfMassPosition()));
+		hit.objectPosition = toGlm(JPH::Vec3(body.GetCenterOfMassPosition()));
 	}
 	return hit;
 }

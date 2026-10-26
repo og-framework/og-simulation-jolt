@@ -46,7 +46,7 @@ JoltWorldConfig stepWorldConfigOf(const std::vector<SlotBodyTemplate>& slotTempl
 	const std::vector<JoltLayerKey> physicsOnlyLayers = staticLayerKeysOf(physicsOnlyStatics);
 	config.staticLayers.insert(config.staticLayers.end(), physicsOnlyLayers.begin(), physicsOnlyLayers.end());
 	config.ringDepthTicks   = ringDepthTicks;
-	config.gravityCmPerS2   = gravity;
+	config.gravity          = gravity;
 	return config;
 }
 

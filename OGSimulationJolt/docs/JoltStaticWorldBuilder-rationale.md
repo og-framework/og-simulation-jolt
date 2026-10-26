@@ -31,7 +31,7 @@ The builder takes its own logger (the same function type as the world's), and an
 |---|---|
 | `StaticBox` | box, with a convex radius (§3) |
 | `StaticSphere` | sphere |
-| `StaticCapsuleZ` | Jolt capsule (Y axis) inside a rotated-translated shape that turns Y into Z; cylinder half height = `totalHalfHeight` − `radius`. A capsule with `totalHalfHeight` equal to `radius` is a sphere; one with `totalHalfHeight` < `radius` is invalid (§6) |
+| `StaticCapsule` | Jolt capsule (Y axis, the frame's up) built by `joltFrame::capsuleShapeFromSettings` (`JoltFrame-rationale.md`); cylinder half height = `totalHalfHeight` − `radius`. A capsule with `totalHalfHeight` equal to `radius` is a sphere; one with `totalHalfHeight` < `radius` is invalid (§6) |
 | `StaticConvexHull` | convex hull of the points, with a convex radius (§3) |
 | `StaticTriangleMesh` | mesh shape; the triangles keep the description's winding (guard G-02) |
 
@@ -41,9 +41,9 @@ which prints one count per type.
 
 Height fields, cylinders and planes are follow-on 16 (they are not in `StaticShape` yet).
 
-**Units.** Every length (half extents, radii, points, vertices, translations) goes through
-`JoltUnits.h` (`joltUnits::centimetresToMetres`). The builder has no conversion factor of its own.
-Scale factors are unitless and are not converted.
+**Units.** Every length (half extents, radii, points, vertices, translations) is og-simulation metres,
+Jolt's unit too, and passes unconverted; the builder only copies glm vectors into Jolt vectors.
+Scale factors are unitless.
 
 ## §3 Convex radius: the host engine's collision margin
 
@@ -55,7 +55,8 @@ boxes and convexes: by default 5% of the shape's size, capped at 10 cm (DefaultC
 engine measures (a full or a half extent) was not checked.
 
 The builder uses the same rule by default (`JoltStaticWorldBuilderOptions` ::
-`convexRadiusFractionOfMinExtent` = 0.05, `maxConvexRadiusCm` = 10). The smallest extent is the
+`convexRadiusFractionOfMinExtent` = 0.05, `maxConvexRadius` = 0.1 m, the host engine's 10 cm). The
+smallest extent is the
 smallest full edge of a box, or of the axis-aligned bounds of a hull's points. Jolt can lower the
 radius further for a hull it cannot shrink that far. This replaces Jolt's own default (a fixed 5 cm)
 so that a capsule sliding over an arena edge meets the same rounding as before. Whether the two engines
@@ -86,8 +87,8 @@ each, in the same order.
 
 The design pictured each element wrapped in a rotated-translated shape and then combined. A
 compound child already carries a position and a rotation, so the builder places the children directly
-and keeps the explicit rotated-translated wrapper only where it is part of the shape (the Z-up
-capsule), where a scale must be applied to it (§6).
+and keeps the explicit rotated-translated wrapper only where it is part of the shape (the capsule,
+while the frame is Z-up), where a scale must be applied to it (§6).
 
 ## §5 Order: the same arena on every peer
 

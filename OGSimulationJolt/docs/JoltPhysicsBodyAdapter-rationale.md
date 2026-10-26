@@ -2,7 +2,7 @@
 # `JoltPhysicsBodyAdapter.h` / `JoltPhysicsBodyAdapter.cpp` — rationale
 
 og-simulation's body seam (`PhysicsBodyAdapter`) implemented on a `JoltWorld`, plus the two things
-every Jolt adapter shares: the seam-unit conversions (`joltSeamUnits`) and the bind table
+every Jolt adapter shares: the seam's glm-to-Jolt type conversions (`joltSeam`) and the bind table
 (`JoltBodyBindTable`). Prohibitions are in `JoltPhysicsBodyAdapter-guards.md`. The binding the table
 stores (`JoltBodyBinding`) and the body user data helpers (`joltBodyUserData`) are in
 `JoltBodyUserData.h`, which this header includes (`JoltBodyUserData-rationale.md`).
@@ -32,31 +32,29 @@ Members outside the concept:
 
 ## §2 The seam's units (pinned)
 
-The seam speaks the units of the Chaos body adapter (UE-sim's ChaosPhysicsBodyAdapter.h), which is
-Unreal's centimetre system. Confirmed from that adapter:
+The seam speaks og-simulation's units (`SimulationFrame.h`): metres, kilograms and seconds, in
+og-simulation's axes. Jolt runs in the same units, so nothing is scaled at this seam:
 
-| Quantity | Seam unit | Evidence in the Chaos adapter |
+| Quantity | Seam unit | Jolt |
 |---|---|---|
-| position | cm | X / P pass through the UE↔glm conversion unscaled |
-| linear velocity, velocity change | cm/s | V passes through unscaled |
-| acceleration | cm/s² | multiplied by the body mass M() (kg) and handed to AddForce |
-| force (internal) | kg·cm/s² | the AddForce argument above |
-| torque | kg·cm²/s² | handed to AddTorque unscaled; the radial weapon computes it as angular acceleration × the inertia this seam reports (og-brawler's DAttackRadialSimulation.h, applyTorque) |
-| inertia | kg·cm² | Chaos's world inertia, unscaled |
-| angular velocity | rad/s | W passes through unscaled |
-| rotation | unit quaternion | glm (w, x, y, z) |
+| position | m | m |
+| linear velocity, velocity change | m/s | m/s |
+| acceleration | m/s² | multiplied by the body mass (kg) and handed to AddForce, so N |
+| torque | kg·m²/s² (N·m) | N·m |
+| inertia | kg·m² | kg·m² |
+| angular velocity | rad/s | rad/s |
+| rotation | unit quaternion, glm (w, x, y, z) | unit quaternion, Jolt (x, y, z, w) |
 
-Jolt runs in metres (`JoltUnits-rationale.md`). Every conversion happens in `joltSeamUnits`, in one
-place:
+The Chaos body adapter converts to Unreal's centimetres and axes at its own edge (UE-sim's
+ChaosPhysicsBodyAdapter.h); this adapter has no edge to convert.
 
-- lengths, velocities and accelerations: `centimetreVectorToJolt` (×0.01, through
-  `joltUnits::centimetresToMetres`) and `metreVectorToSeam` (×100);
-- torque: `torqueToJolt` (×1e-4: kg·cm²/s² → N·m);
-- inertia: `inertiaToJolt` (×1e-4) and `inertiaToSeam` (×1e4);
-- rotation: `rotationToJolt` / `rotationToSeam` reorder glm (w, x, y, z) and Jolt (x, y, z, w);
-- angular velocity: unchanged (rad/s on both sides).
+The conversions in `joltSeam` are type-only: `toJolt` and `toGlm` copy the three components of a vector,
+and `rotationToJolt` / `rotationToSeam` reorder a quaternion between glm's (w, x, y, z) and Jolt's
+(x, y, z, w). Each carries every bit both ways (`JoltBodyAdapter.VectorAndQuaternionRoundTrips`). Until the
+simulations moved to metres the seam scaled lengths by 0.01 into Jolt and by 100 back, and torque and
+inertia by 1e-4; flip U made every factor 1, and Stage C deleted them.
 
-Because torque and inertia are scaled by the same factor, Δω = τ / I · dt holds in seam units
+Because torque and inertia are in the same units on both sides, Δω = τ / I · dt holds in seam units
 (`JoltBodyAdapter.ATorqueInSeamUnitsYieldsTauOverInertiaTimesDt`).
 
 The old UE-only adapter (Source/JoltPhysicsModule; historical: deleted after the parity gate) passed torque through
@@ -82,8 +80,8 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
 - **`setBodyTransform`** writes position and rotation and does not activate the body (slot bodies
   never sleep, `JoltWorld-rationale.md`). The rotation is normalised first: Jolt expects a unit
   quaternion, and a rotation extracted from a matrix is unit only to float precision.
-- **`setBodyPose`** writes position and rotation with no matrix in between: the position is converted
-  like every length (`centimetreVectorToJolt`), the quaternion only reordered (`rotationToJolt`), and the
+- **`setBodyPose`** writes position and rotation with no matrix in between: the position is copied
+  like every vector (`joltSeam::toJolt`), the quaternion only reordered (`rotationToJolt`), and the
   body is not activated. It does **not** normalise. The restore push
   (`SimulationIntegrationExecutor::pushCorrectedBodyStatesAll`) hands it either an adopted rotation or the
   body's own captured one, and either is a capture of a rotation Jolt already held as a unit quaternion;
@@ -91,8 +89,8 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
   back with the same quaternion bits (`JoltSuite.SetBodyPoseWritesTheQuaternionBitForBitAndTheMatrixPathDoesNot`:
   0 of 1,000 random unit quaternions change). A normalise would re-round about a third of them (318 of
   1,000 when tried as a poison), and the matrix path (`setBodyTransform`) changes most of them (930 of
-  1,000). The position is still not exact: the ×0.01 conversion and Jolt's centre-of-mass offset can
-  change it by an ULP (`JoltUnits-rationale.md` §5).
+  1,000). The position is still not always exact: Jolt's centre-of-mass offset can change it by an ULP
+  (§9).
 - **`captureBodyState`** reads the body after the step. Jolt has no separate start-of-step and solved
   pose (Chaos's X/R versus P/Q), so the body's position after an update is the solved pose, the
   counterpart of what the Chaos adapter reads.
@@ -158,3 +156,31 @@ The packing of a binding and the root mark into Jolt's body user data moved, wit
 
 - **G-01** — `isBodyResolvable` means bound, never occupied.
 - **G-02** — `releaseSlot` clears the bindings and nothing else.
+
+## §9 The restore skip and its tripwire (moved from the retired JoltUnits rationale, §5)
+
+A seam write is not always exact. Jolt stores a body's centre of mass, not its origin: `setBodyPose`
+hands Jolt the origin, Jolt adds the rotated centre-of-mass offset to the position it stores, and a capture
+subtracts it again. For a body whose centre of mass is offset from its origin, a value written into Jolt and
+captured back does not always keep its bits. Until the simulations moved to metres the write also
+multiplied centimetres by 0.01 into metres; since flip U the seam carries metres unconverted (§2).
+
+The restore skip in `SimulationIntegrationExecutor::pushCorrectedBodyStatesAll` exists because of that loss.
+After a resim restores Jolt's own snapshot of the anchor, the push compares each declaration with the
+restored body and skips the write when they are equal. Without the skip every resim moves the bodies nobody
+corrected by an ULP, the next correction compares exactly and disagrees, and a torque-driven body (the
+weapon) keeps the error and starts a resim storm.
+
+The test `JoltSuite.Tripwire.TheSeamWriteIsLossyUntilTheSimulationsUseMetres` (og-simulation-tests,
+Jolt/JoltRollbackSuiteTest.cpp) writes 1,000 seeded states through the body adapter directly
+(`setBodyPose`, then both velocity setters), on a slot body whose centre of mass is offset from its origin,
+counts the states whose capture differs in any bit, prints the count on every run:
+
+`[JoltSuite] tripwire: N of 1000 seam writes changed bits (0 = remove the restore skip in pushCorrectedBodyStatesAll)`
+
+and requires N > 0. N was 793 at its introduction, in centimetres, and is 984 in metres (measured
+2026-10-26 at the metre, Y-up knobs): the move to metres did not make the write exact, because the
+centre-of-mass step still loses bits.
+
+The skip is kept by the 2026-10-25 ruling (Q3 of og-sim-metres-yup), which also retires this tripwire: it
+measures an artificial offset centre of mass, and no shipped body has one.

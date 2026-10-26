@@ -3,6 +3,7 @@
 // docs/JoltWorld-rationale.md · docs/JoltWorld-guards.md
 
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -25,14 +26,15 @@
 #include "OGSimulation/BodySlotOccupancy.h"
 #include "OGSimulation/PhysicsWorldAdapter.h"
 #include "OGSimulation/QueryGeometry.h"
+#include "OGSimulation/SimulationFrame.h"
 
 using JoltWorldLoggerFn = std::function<void(const char*)>;
 using JoltWorldClockFn = double (*)();
 using JoltWorldAfterStepFn = void (*)(void* context);
 
-inline constexpr float kChaosRestitutionThresholdCmPerS2 = 1000.f;
+inline constexpr float kChaosRestitutionThreshold = 10.f;
 inline constexpr float kChaosParityStepSeconds = 1.f / 60.f;
-inline constexpr float kChaosParityMinVelocityForRestitutionCmPerS = kChaosRestitutionThresholdCmPerS2 * kChaosParityStepSeconds;
+inline constexpr float kChaosParityMinVelocityForRestitution = kChaosRestitutionThreshold * kChaosParityStepSeconds;
 
 struct SlotBodyTemplate
 {
@@ -47,15 +49,20 @@ struct JoltWorldConfig
 	std::vector<JoltLayerKey> staticLayers;
 	uint32_t ringDepthTicks = 0;
 	uint32_t ringSlotBytes = 16u * 1024u;
-	glm::vec3 gravityCmPerS2{ 0.f, 0.f, -980.f };
-	glm::vec3 parkingPositionCm{ 0.f };
-	float minVelocityForRestitutionCmPerS = kChaosParityMinVelocityForRestitutionCmPerS;
+	glm::vec3 gravity = simFrame::withHeight(glm::vec3(0.f), -9.8f);
+	glm::vec3 parkingPosition{ 0.f };
+	float minVelocityForRestitution = kChaosParityMinVelocityForRestitution;
 	uint32_t tempAllocatorBytes = 16u << 20;
 	uint32_t maxBodies = 1024;
 	uint32_t maxBodyPairs = 4096;
 	uint32_t maxContactConstraints = 2048;
 	JoltWorldClockFn clock = nullptr;
 };
+
+static_assert(std::bit_cast<std::uint32_t>(JoltWorldConfig{}.gravity[(simFrame::kUpIndex + 1) % 3]) == 0u
+		&& std::bit_cast<std::uint32_t>(JoltWorldConfig{}.gravity[(simFrame::kUpIndex + 2) % 3]) == 0u
+		&& simFrame::height(JoltWorldConfig{}.gravity) == -9.8f,
+	"JoltWorld: the default gravity is today's { 0.f, 0.f, -980.f } along the frame's up, with +0 (never -0) in the other two components");
 
 enum class JoltContactOverflow : uint8_t
 {

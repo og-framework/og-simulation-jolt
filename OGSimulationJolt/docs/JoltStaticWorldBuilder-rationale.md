@@ -87,8 +87,9 @@ each, in the same order.
 
 The design pictured each element wrapped in a rotated-translated shape and then combined. A
 compound child already carries a position and a rotation, so the builder places the children directly
-and keeps the explicit rotated-translated wrapper only where it is part of the shape (the capsule,
-while the frame is Z-up), where a scale must be applied to it (§6).
+and builds no rotated-translated wrapper of its own. (While the frame was Z-up the capsule needed one,
+because Jolt's capsule lies along its Y axis; in the Y-up frame it is a plain capsule.) A scale is applied
+to an element with Jolt's scale-shape operation (§6).
 
 ## §5 Order: the same arena on every peer
 
@@ -115,7 +116,7 @@ byte-identical full Jolt state.
 
 ## §6 Transforms and scale
 
-`localToWorld` is decomposed into a translation (converted to metres), a rotation and a per-axis scale
+`localToWorld` is decomposed into a translation (already in metres, copied), a rotation and a per-axis scale
 (the lengths of the matrix's first three columns; a negative determinant puts the sign on X). The
 rotation is the normalized quaternion of the matrix with the scale divided out.
 
@@ -163,8 +164,8 @@ Catch2 cases, tags `[Jolt][StaticGeometry]`, in `JoltStaticWorldBuilderTest.cpp`
 
 - `JoltStaticWorldBuilder.EachShapeTypeIsQueryableAtTheExpectedPlace`: one element of each type, placed
   with a translation and (except the sphere and capsule) a rotation. Rays from above hit the expected
-  top within 0.05 cm and miss just outside. The capsule's top is at centre + `totalHalfHeight` (so it is
-  Z-up), and a ray along X meets its side at centre + radius. The mesh is hit from above and not from below.
+  top within 0.0005 m (0.05 cm) and miss just outside. The capsule's top is at centre + `totalHalfHeight`
+  (so it lies along the frame's up), and a ray along X meets its side at centre + radius. The mesh is hit from above and not from below.
 - `JoltStaticWorldBuilder.GroupsByCollisionPairAndSurfaceIntoStaticBodiesOnTheirLayer`: three groups and
   four chunks become four static, inactive bodies with consecutive ids, each on a Static-class layer with
   its group's surface; seven children in total.

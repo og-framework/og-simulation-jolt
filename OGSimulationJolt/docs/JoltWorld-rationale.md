@@ -236,7 +236,8 @@ constructor; a host that steps at another rate (a 120 Hz tick) must pass 10 m/sÂ
 The setting is not in a snapshot, so like the other world settings it must be the same on every peer;
 it comes from the configuration, which every peer builds identically.
 
-Measured (`JoltSuite.TheRestitutionVelocityThresholdIsChaosParity`, 2026-10-07): the brawler capsule
+Measured (`JoltSuite.TheRestitutionVelocityThresholdIsChaosParity`, 2026-10-07, while the simulation ran in
+centimetres; 10 / 50 / 150 cm/s are 0.1 / 0.5 / 1.5 m/s): the brawler capsule
 (friction 0, restitution 0) dropped on a default-surface floor (0.7 / 0.3) gets the Average-combined
 restitution 0.15. Its rebound at approach speeds of 10 / 50 / 150 cm/s is 0 / 7.5 / 22.5 cm/s with
 the parity threshold, and 0 / 0 / 22.5 cm/s with Jolt's default: landings between 16.7 and 100 cm/s

@@ -235,6 +235,8 @@ void JoltWorld::buildSlotBodies(const JoltWorldConfig& config)
 			hasShape ? m_layers.layerOf(templateLayerKeyOf(descriptor)) : m_layers.parkedLayer(),
 			descriptor.body.enableGravity ? 1.f : 0.f });
 		shapes.push_back(hasShape ? shapeOf(descriptor.shapes.front().geometry) : JPH::RefConst<JPH::Shape>(new JPH::SphereShape(0.01f)));
+		OG_CHECK(shapes.back()->GetCenterOfMass() == JPH::Vec3::sZero(),
+			"JoltWorld: a slot template shape's centre of mass is not at its origin (the body seam carries the origin, so a pose written and captured back could change its position bits; og-sim-metres-yup task 25 replaced the seam-write tripwire with this check)");
 	}
 
 	for (uint32_t slot = 0; slot < m_simulatableSlots; ++slot)

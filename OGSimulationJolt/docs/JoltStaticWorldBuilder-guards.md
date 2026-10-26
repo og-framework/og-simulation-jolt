@@ -46,16 +46,18 @@ the line that appends each triangle.
 **The prohibition.** Pass each triangle's three indices to Jolt in the order the description gives
 them. Do not swap the second and third index to "convert handedness".
 
-**The consequence.** The description's winding is the host's physics winding: the first host importer
-copies the triangles of the host's cooked physics mesh, and that engine's triangle normal is
-(B − A) × (C − A), the same front face Jolt uses. Jolt ignores the back faces of mesh triangles in
+**The consequence.** The description's winding is the host's physics winding, carried into og-simulation's
+frame: the first host importer copies the triangles of the host's cooked physics mesh, whose engine takes
+(B − A) × (C − A) as the front face, the same rule Jolt uses, and swaps two indices when the map from the host's
+frame to og-simulation's reflects (it does for a left-handed host), so the front face survives the map. Jolt ignores the back faces of mesh triangles in
 contact generation and in default ray casts, so a swapped winding turns every mesh in the arena inside
 out: capsules fall through floors from above and collide from below (the contact half is read
 from Jolt's contact code, which keeps the default back-face mode; not measured). Witnessed on 2026-10-07: with the
 indices swapped, the mesh checks in `JoltStaticWorldBuilder.EachShapeTypeIsQueryableAtTheExpectedPlace`
 failed (no hit from above, a hit from below).
 
-**What breaks if it moves.** Nothing: the tag stays on the line that appends the triangle. A mirrored
-host transform is the host's job (the importer swaps the indices itself when the scale is mirrored),
+**What breaks if it moves.** Nothing: the tag stays on the line that appends the triangle. A reflecting
+frame map and a mirrored host transform are the host's job (the importer swaps the indices itself when exactly
+one of the two reflects),
 and a mirrored `localToWorld` reaches Jolt as a negative scale on a scaled shape, which Jolt accepts for meshes and hulls (not
 tested here).

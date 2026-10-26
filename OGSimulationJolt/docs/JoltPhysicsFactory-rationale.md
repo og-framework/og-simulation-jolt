@@ -81,7 +81,10 @@ the character capsule's body instance does not enable CCD.
 **The default stays off, decided by the determinism and cost suite (2026-10-07).** Measured with
 `JoltSuite.TunnellingAtTheMaximumKnockbackSpeedWithAndWithoutLinearCast`: the brawler capsule (radius
 42 cm) driven at a constant speed into a 1 cm box wall, a 10 cm box wall and a zero-thickness triangle
-mesh wall, from 16 starting positions spread over one tick of travel, 20 ticks each:
+mesh wall, from 16 starting positions spread over one tick of travel, 20 ticks each. The measurement was made
+while the simulation ran in centimetres, and the table keeps its numbers (divide by 100 for metres: 2000 cm/s is
+20 m/s, a 33.3 cm travel is 0.333 m); the capsule and the walls had the same physical sizes as today's metre
+values:
 
 | Speed (cm/s) | Travel per tick | Discrete: tunnelled / max penetration | LinearCast: tunnelled / max penetration |
 |---|---|---|---|

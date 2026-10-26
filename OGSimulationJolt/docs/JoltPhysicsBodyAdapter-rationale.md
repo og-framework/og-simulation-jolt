@@ -89,8 +89,8 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
   back with the same quaternion bits (`JoltSuite.SetBodyPoseWritesTheQuaternionBitForBitAndTheMatrixPathDoesNot`:
   0 of 1,000 random unit quaternions change). A normalise would re-round about a third of them (318 of
   1,000 when tried as a poison), and the matrix path (`setBodyTransform`) changes most of them (930 of
-  1,000). The position is still not always exact: Jolt's centre-of-mass offset can change it by an ULP
-  (§9).
+  1,000). The position is exact too for every shipped body, whose centre of mass is at its origin; a body
+  with an offset centre of mass can have it changed by an ULP (§9).
 - **`captureBodyState`** reads the body after the step. Jolt has no separate start-of-step and solved
   pose (Chaos's X/R versus P/Q), so the body's position after an update is the solved pose, the
   counterpart of what the Chaos adapter reads.
@@ -157,30 +157,47 @@ The packing of a binding and the root mark into Jolt's body user data moved, wit
 - **G-01** — `isBodyResolvable` means bound, never occupied.
 - **G-02** — `releaseSlot` clears the bindings and nothing else.
 
-## §9 The restore skip and its tripwire (moved from the retired JoltUnits rationale, §5)
+## §9 The restore skip, the origin-at-COM check and the round-trip test
 
-A seam write is not always exact. Jolt stores a body's centre of mass, not its origin: `setBodyPose`
-hands Jolt the origin, Jolt adds the rotated centre-of-mass offset to the position it stores, and a capture
-subtracts it again. For a body whose centre of mass is offset from its origin, a value written into Jolt and
-captured back does not always keep its bits. Until the simulations moved to metres the write also
-multiplied centimetres by 0.01 into metres; since flip U the seam carries metres unconverted (§2).
+Jolt stores a body's centre of mass, not its origin: `setBodyPose` hands Jolt the origin, Jolt adds the
+rotated centre-of-mass offset to the position it stores, and a capture subtracts it again. For a body whose
+centre of mass is offset from its origin, a position written and captured back does not always keep its
+bits. Measured on the radial slot body with a 1 cm offset: 1 of 1,000 seeded positions changed, and every
+rotation and velocity came back exact
+(`JoltShippedTemplateRoundTrip.Poison.ACentimetreCentreOfMassOffsetBreaksTheRoundTrip`, hidden behind
+`[.][JoltRoundTripPoison]`; it fails by design).
 
-The restore skip in `SimulationIntegrationExecutor::pushCorrectedBodyStatesAll` exists because of that loss.
-After a resim restores Jolt's own snapshot of the anchor, the push compares each declaration with the
-restored body and skips the write when they are equal. Without the skip every resim moves the bodies nobody
-corrected by an ULP, the next correction compares exactly and disagrees, and a torque-driven body (the
-weapon) keeps the error and starts a resim storm.
+So `JoltWorld::buildSlotBodies` checks, with an `OG_CHECK`, that every slot template's shape has its
+centre of mass at its origin. The shapes it builds (sphere, box, capsule, and the small placeholder sphere
+of a template without a shape) are all centred, so every shipped body passes.
 
-The test `JoltSuite.Tripwire.TheSeamWriteIsLossyUntilTheSimulationsUseMetres` (og-simulation-tests,
-Jolt/JoltRollbackSuiteTest.cpp) writes 1,000 seeded states through the body adapter directly
-(`setBodyPose`, then both velocity setters), on a slot body whose centre of mass is offset from its origin,
-counts the states whose capture differs in any bit, prints the count on every run:
+`JoltShippedTemplateRoundTrip.EveryShippedTemplateRoundTripsAThousandSeededStatesThroughThePoseWriter`
+(og-simulation-tests, Jolt/JoltShippedTemplateRoundTripTest.cpp) creates the six slot bodies of the test
+rig's brawler template (`brawlerSlotTemplate()`, og-simulation-tests' stand-in for og-brawler's six slot
+bodies: the same six shapes, but not a copy of every descriptor flag; its capsule has `enableGravity` set, the
+shipped character capsule does not, which a round trip with no step cannot see) through `JoltPhysicsFactory`,
+so each carries the shipped body defaults. On each body it writes
+1,000 seeded states in the restore push's order (`setBodyPose`, then the linear and the angular velocity
+setter), captures each one back, and checks every field bit for bit. Every field round-trips exactly,
+with one pinned exception: a rotation-locked body (the capsule, `lockRotation`) captures a zero angular
+velocity, because Jolt masks a velocity it is given by the body's allowed degrees of freedom. The seeded
+velocities stay below the shipped limits (`joltBodyDefaults::kMaxLinearVelocityMetresPerSecond`,
+`kMaxAngularVelocityRadiansPerSecond`; two `static_assert`s pin this): Jolt's velocity setters clamp to
+the body's maximum, so a write above it does not round-trip either.
 
-`[JoltSuite] tripwire: N of 1000 seam writes changed bits (0 = remove the restore skip in pushCorrectedBodyStatesAll)`
+The restore skip in `SimulationIntegrationExecutor::pushCorrectedBodyStatesAll` is kept by the
+2026-10-25 ruling (Q3 of og-sim-metres-yup). After a resim restores Jolt's own snapshot of the anchor,
+the push compares each declaration with the restored body and skips the write when they are equal. It
+was added because the seam write was lossy (centimetres to metres, then the centre-of-mass step):
+writing an unchanged body moved it by an ULP, the next correction compared exactly and disagreed, and a
+torque-driven body (the weapon) kept the error and started a resim storm. On Jolt the write of a shipped
+body is now exact, so the skip saves, for every body nobody corrected, a pose write and the broadphase
+update Jolt's set-position-and-rotation makes for a body in the broadphase. On an adapter whose write is
+not exact it still prevents the storm.
 
-and requires N > 0. N was 793 at its introduction, in centimetres, and is 984 in metres (measured
-2026-10-26 at the metre, Y-up knobs): the move to metres did not make the write exact, because the
-centre-of-mass step still loses bits.
-
-The skip is kept by the 2026-10-25 ruling (Q3 of og-sim-metres-yup), which also retires this tripwire: it
-measures an artificial offset centre of mass, and no shipped body has one.
+The test that guarded the skip until this ruling (task 59's tripwire, deleted by og-sim-metres-yup task
+25) required that 1,000 seeded writes to a slot body with an artificial 0.25 m centre-of-mass offset
+changed bits. It counted 793 in centimetres and 984 in metres, but the 984 came from Jolt's velocity
+clamp, not from the centre-of-mass step: its 1,500-unit velocity range meant 15 m/s in centimetres and
+1,500 m/s after flip U, above the 500 m/s limit, and a replay of its seeded draws finds exactly 984 of
+the 1,000 states over that limit.

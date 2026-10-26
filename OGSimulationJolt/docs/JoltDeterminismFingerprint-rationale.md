@@ -38,8 +38,8 @@ hashes.
 The probe's numbers are og-simulation metres in og-simulation's axes (+Y up, -Z forward): the capsule's
 0.42 m radius and 0.96 m total half height, a floor box of half extents (5, 0.5, 5) m centred at
 (0, -0.5, -0) so its top is at height 0, and the two slots at (0, 1, 0.4) and (0.05, 1.3, -0.4) m. Each is
-the literal its legacy wrapper returned at the metre, Y-up knobs, bit for bit (the floor centre keeps the -0
-the wrapper placed). The world's default gravity (`JoltWorld-rationale.md` §2) and the capsule shape
+the literal the centimetre wrapper it was first written with returned in metres and Y-up, bit for bit (the
+floor centre keeps the -0 the wrapper placed). The world's default gravity (`JoltWorld-rationale.md` §2) and the capsule shape
 (`JoltFrame-rationale.md`) follow the same frame.
 
 Stable across runs of the same binary: `JoltDeterminismFingerprint.StableAcrossTwoRunsOfTheSameBinary`.
@@ -50,8 +50,8 @@ are not pinned. A change to the probe, to Jolt or to its build flags that moves 
 an intended change re-pins it in the same change.
 
 The pinned value has changed once, at the axis flip (2026-10-26). In Unreal's axes it was
-`0x835b9656d68aa407`, in centimetres and again in metres: flipping the units did not move it. Since
-`kAxisFrame` became `YUpRightHanded` it is `0xe54d2bc380288c01`. The scene, the world's gravity and the
+`0x835b9656d68aa407`, in centimetres and again in metres: flipping the units did not move it. Since the
+simulation's axis frame became the right-handed Y-up one it is `0xe54d2bc380288c01`. The scene, the world's gravity and the
 capsule now lie along Jolt's Y axis, and the capsule is a plain capsule instead of a rotated-translated
 shape.
 

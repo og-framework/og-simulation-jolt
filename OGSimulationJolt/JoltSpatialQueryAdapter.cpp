@@ -325,6 +325,13 @@ SweepHit JoltSpatialQueryAdapter::sweep(QueryVolumeId volumeId, const glm::mat4&
 	hit.bodyId = JoltPhysicsBodyAdapter::bodyIdOf(nearest.body);
 	hit.rootBodyId = rootOf(hit.bodyId);
 	hit.objectCategories = categoriesOf(nearest.body);
+	JPH::BodyLockRead lock(m_world.physics().GetBodyLockInterfaceNoLock(), nearest.body);
+	if (lock.Succeeded())
+	{
+		JPH::SubShapeID subShapeId;
+		subShapeId.SetValue(nearest.subShapeId);
+		hit.surfaceNormal = toGlm(lock.GetBody().GetWorldSpaceSurfaceNormal(subShapeId, nearest.contactPointOnBody));
+	}
 	return hit;
 }
 

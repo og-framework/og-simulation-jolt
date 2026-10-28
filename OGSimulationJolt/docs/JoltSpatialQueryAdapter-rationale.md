@@ -159,7 +159,22 @@ reads or writes the volume's stored parent transform, as the concept requires.
   returns no axis (UE's fallback for an initial overlap);
   `impactPoint` = the contact point on the target, in m; `penetrationDepth` only when start-penetrating,
   else 0; identity and categories as in §3–§4. A miss is the default `SweepHit` (not blocked,
-  fraction 1).
+  fraction 1, `surfaceNormal` zero).
+- **`surfaceNormal`, the exact face normal** (added 2026-10-28). After the fields above, `sweep` read-locks the
+  nearest candidate's body (as `keyOf` does, through the no-lock interface: the caller already holds world access, §2),
+  rebuilds the `JPH::SubShapeID` from the candidate's stored sub-shape value, and stores
+  `lock.GetBody().GetWorldSpaceSurfaceNormal(subShapeId, nearest.contactPointOnBody)`. In Jolt (Body.inl, not
+  distributed here) that is the shape's own surface-normal query at the contact point, taken through the inverse
+  centre-of-mass transform and normalised. For a box (Jolt BoxShape.cpp) it is the signed axis of the face nearest
+  the point, rotated to world, so it is constant over a face. The cast and the zero-length collide both fill it, because both store the contact point and
+  the sub-shape id in the candidate. Measured (`ASweepReportsTheExactFaceNormalAsSurfaceNormal`): over an 11 × 11
+  grid on a box face tilted 30°, the cast and the collide each return the box's rotated +Y with a largest component
+  error of 0; a flat box returns (0, 1, 0) bit for bit; the GJK `normal` differed from it by at most 1.7e-6 rad on
+  that box.
+  `normal` stays the negated penetration axis, unchanged: it is what the movement's ground probe has always read,
+  and on an initial overlap it is the push-out direction (G-07), which a face normal is not at an edge. The new field
+  is query output only; nothing it reads or writes reaches the physics step, so the determinism fingerprint cannot
+  move (and does not).
 
 ## §7 What a query never returns
 
@@ -216,6 +231,7 @@ it counts them only); that is host work (task 18 or the importer), and there are
 | Sweep: nearest blocking hit by time, first minimum wins | nearest by fraction, ties by key | equal up to tie order |
 | Sweep starting inside: time 0, start-penetrating, MTD normal and depth | same (G-07) | equal (measured) |
 | Zero-length sweep: initial overlaps only | answered by an overlap at the start pose | equal |
+| Sweep `surfaceNormal`: not filled (left zero, "not provided") | the exact face normal of the hit shape (§6) | ⚠ deviation by design: a consumer falls back to `normal` on zero |
 | PhysicsOnly statics: never found | excluded by the host's list (§8) | equal once the host supplies the list |
 | `ShapeId`: sequential per registration | the body's id value; a rejoin reuses it and re-enables it (G-03) | ⚠ ids differ; bounded |
 | Threading: physics-thread or game-thread context checks | an access assert on every member (§2) | stricter |

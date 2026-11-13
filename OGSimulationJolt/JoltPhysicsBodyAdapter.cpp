@@ -85,6 +85,7 @@ glm::vec3 JoltBodyBindTable::lockedRotationInertiaOf(BodyId bodyId) const
 
 glm::mat4 joltBodyTransformOf(const JoltWorld& world, BodyId bodyId)
 {
+	OG_CHECK(world.callerMayAccess(), "joltBodyTransformOf: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	JPH::RVec3 position;
 	JPH::Quat rotation;
 	world.bodies().GetPositionAndRotation(JoltPhysicsBodyAdapter::joltBodyIdOf(bodyId), position, rotation);
@@ -93,6 +94,7 @@ glm::mat4 joltBodyTransformOf(const JoltWorld& world, BodyId bodyId)
 
 PhysicsBodyState joltBodyStateOf(const JoltWorld& world, BodyId bodyId)
 {
+	OG_CHECK(world.callerMayAccess(), "joltBodyStateOf: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	const JPH::BodyID id = JoltPhysicsBodyAdapter::joltBodyIdOf(bodyId);
 	const JPH::BodyInterface& bodies = world.bodies();
 	JPH::RVec3 position;
@@ -109,6 +111,7 @@ PhysicsBodyState joltBodyStateOf(const JoltWorld& world, BodyId bodyId)
 
 float joltBodyMassOf(const JoltWorld& world, BodyId bodyId)
 {
+	OG_CHECK(world.callerMayAccess(), "joltBodyMassOf: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	JPH::BodyLockRead lock(world.physics().GetBodyLockInterfaceNoLock(), JoltPhysicsBodyAdapter::joltBodyIdOf(bodyId));
 	if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
 	{
@@ -120,6 +123,7 @@ float joltBodyMassOf(const JoltWorld& world, BodyId bodyId)
 
 glm::vec3 joltBodyInertiaOf(const JoltWorld& world, const JoltBodyBindTable& bindTable, BodyId bodyId)
 {
+	OG_CHECK(world.callerMayAccess(), "joltBodyInertiaOf: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	JPH::BodyLockRead lock(world.physics().GetBodyLockInterfaceNoLock(), JoltPhysicsBodyAdapter::joltBodyIdOf(bodyId));
 	if (!lock.Succeeded() || !lock.GetBody().IsDynamic())
 	{
@@ -152,6 +156,7 @@ bool JoltPhysicsBodyAdapter::isSlotBody(BodyId bodyId) const
 
 glm::mat4 JoltPhysicsBodyAdapter::getBodyTransform(BodyId bodyId) const
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::getBodyTransform: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return glm::mat4(1.f);
@@ -161,6 +166,7 @@ glm::mat4 JoltPhysicsBodyAdapter::getBodyTransform(BodyId bodyId) const
 
 void JoltPhysicsBodyAdapter::setBodyTransform(BodyId bodyId, const glm::mat4& transform)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::setBodyTransform: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -173,6 +179,7 @@ void JoltPhysicsBodyAdapter::setBodyTransform(BodyId bodyId, const glm::mat4& tr
 
 void JoltPhysicsBodyAdapter::setBodyPose(BodyId bodyId, const glm::vec3& position, const glm::quat& rotation)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::setBodyPose: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -183,6 +190,7 @@ void JoltPhysicsBodyAdapter::setBodyPose(BodyId bodyId, const glm::vec3& positio
 
 void JoltPhysicsBodyAdapter::addBodyTorque(BodyId bodyId, const glm::vec3& torque)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::addBodyTorque: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -192,6 +200,7 @@ void JoltPhysicsBodyAdapter::addBodyTorque(BodyId bodyId, const glm::vec3& torqu
 
 void JoltPhysicsBodyAdapter::setBodyAngularVelocity(BodyId bodyId, const glm::vec3& velocity)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::setBodyAngularVelocity: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -201,6 +210,7 @@ void JoltPhysicsBodyAdapter::setBodyAngularVelocity(BodyId bodyId, const glm::ve
 
 void JoltPhysicsBodyAdapter::setBodyLinearVelocity(BodyId bodyId, const glm::vec3& velocity)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::setBodyLinearVelocity: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -210,6 +220,7 @@ void JoltPhysicsBodyAdapter::setBodyLinearVelocity(BodyId bodyId, const glm::vec
 
 void JoltPhysicsBodyAdapter::addBodyAcceleration(BodyId bodyId, const glm::vec3& acceleration)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::addBodyAcceleration: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -224,6 +235,7 @@ void JoltPhysicsBodyAdapter::addBodyAcceleration(BodyId bodyId, const glm::vec3&
 
 void JoltPhysicsBodyAdapter::addBodyVelocityChange(BodyId bodyId, const glm::vec3& velocityChange)
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::addBodyVelocityChange: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return;
@@ -233,6 +245,7 @@ void JoltPhysicsBodyAdapter::addBodyVelocityChange(BodyId bodyId, const glm::vec
 
 glm::vec3 JoltPhysicsBodyAdapter::getBodyInertiaTensor(BodyId bodyId) const
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::getBodyInertiaTensor: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return glm::vec3(0.f);
@@ -242,6 +255,7 @@ glm::vec3 JoltPhysicsBodyAdapter::getBodyInertiaTensor(BodyId bodyId) const
 
 PhysicsBodyState JoltPhysicsBodyAdapter::captureBodyState(BodyId bodyId) const
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::captureBodyState: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return PhysicsBodyState{};
@@ -251,6 +265,7 @@ PhysicsBodyState JoltPhysicsBodyAdapter::captureBodyState(BodyId bodyId) const
 
 float JoltPhysicsBodyAdapter::getBodyMass(BodyId bodyId) const
 {
+	OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::getBodyMass: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!isSlotBody(bodyId))
 	{
 		return 0.f;

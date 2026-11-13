@@ -95,6 +95,7 @@ struct JoltTickWorldHostConfig
 {
 	bool isAuthority = false;
 	bool runInline = false;
+	bool freeRunning = false;
 	uint32_t clientRingDepthTicks = static_cast<uint32_t>(TimeConfig{}.rollbackWindowHardCap) + 2u;
 	glm::vec3 gravity = JoltWorldConfig{}.gravity;
 	bool contactCounts = false;
@@ -263,15 +264,21 @@ public:
 		const StaticWorldDescription& physicsOnlyStatics, std::optional<JoltPhysicsBodyAdapter>& bodyAdapter,
 		std::optional<JoltPhysicsBodyReaderAdapter>& readerAdapter, std::optional<JoltSpatialQueryAdapter>& queryAdapter)
 	{
-		const bool stepsInline = config.isAuthority || config.runInline;
+		OG_CHECK(!config.freeRunning || (config.isAuthority && !config.runInline),
+			"JoltTickWorldHost::build: freeRunning is the authority's only, and a free-running host does not also run inline; "
+			"it steps on the runner thread that builds it");
+		const StepThreading threading = config.freeRunning ? StepThreading::FreeRunning
+			: (config.isAuthority || config.runInline) ? StepThreading::Inline
+			: StepThreading::FrameBounded;
 		m_threadContext.template configure<kDiagnostics>(
-			config.isAuthority ? tickDriverThread::kAuthorityRoleBit : tickDriverThread::kClientRoleBit, stepsInline);
+			config.isAuthority ? tickDriverThread::kAuthorityRoleBit : tickDriverThread::kClientRoleBit, threading);
+		const bool buildsShadowWorld = threading == StepThreading::FrameBounded;
 
 		if (m_engine.logEnabled(HostLogLevel::Warning))
 			m_engine.log(HostLogLevel::Warning, formatHostLine(m_line, "[SimHost.Mode] role=%s stepping=%s viz=%s",
 				config.isAuthority ? "Authority" : "Client",
-				stepsInline ? "inline" : "worker",
-				stepsInline ? "stepWorld" : "shadowWorld"));
+				threading == StepThreading::Inline ? "inline" : threading == StepThreading::FrameBounded ? "worker" : "runner",
+				buildsShadowWorld ? "shadowWorld" : threading == StepThreading::Inline ? "stepWorld" : "none"));
 
 		m_log = config.log;
 		m_mappedCategories = config.mappedCategories;
@@ -280,8 +287,9 @@ public:
 		m_worlds.slotTemplate = joltTickWorldHost::slotTemplateOf<SimulatableT>();
 		m_rootDeclarationIndex = joltTickWorldHost::rootDeclarationIndexOf(m_worlds.slotTemplate);
 
-		const JoltWorldConfig worldConfig = joltTickWorldHost::stepWorldConfigOf(m_worlds.slotTemplate, queryableStatics,
+		JoltWorldConfig worldConfig = joltTickWorldHost::stepWorldConfigOf(m_worlds.slotTemplate, queryableStatics,
 			physicsOnlyStatics, config.isAuthority ? 0u : config.clientRingDepthTicks, config.gravity);
+		worldConfig.accessCheck = m_threadContext.entryCheck();
 
 		std::vector<JPH::BodyID> stepStaticBodies;
 		{
@@ -325,7 +333,7 @@ public:
 		m_readerAdapter = &readerAdapter;
 		m_queryAdapter  = &queryAdapter;
 
-		if (!stepsInline)
+		if (buildsShadowWorld)
 			buildShadowWorld(worldConfig, queryableStatics, physicsOnlyStatics, stepStaticBodies);
 
 		const bool stepListener   = m_worlds.stepWorld->physics().GetContactListener() != nullptr;
@@ -355,6 +363,9 @@ public:
 	std::optional<uint32_t> acquire(uint64_t key, const char* name, bool isAuthority, std::optional<uint32_t> replicatedSlot,
 		PublishF&& publish)
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
+			"JoltTickWorldHost::acquire: a free-running authority binds on its runner; "
+			"the game thread reaches it through queues only (E10)");
 		const bool alreadyHeld = m_slots.slotOf(key).has_value();
 		const std::optional<uint32_t> slot = m_slots.acquire(key, name, isAuthority, replicatedSlot);
 		if (slot && isAuthority && !alreadyHeld)
@@ -365,6 +376,9 @@ public:
 	template <typename PushBodySlotOccupancyF>
 	std::optional<uint32_t> release(uint64_t key, unsigned int id, PushBodySlotOccupancyF&& pushBodySlotOccupancy)
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
+			"JoltTickWorldHost::release: a free-running authority binds on its runner; "
+			"the game thread reaches it through queues only (E10)");
 		const std::optional<uint32_t> slot = m_slots.release(key);
 		if (!slot.has_value())
 			return std::nullopt;
@@ -391,6 +405,9 @@ public:
 	void bind(uint32_t slot, unsigned int id, SimulatableT& simulatable, const StaticDataT& staticData,
 		OnWorldLockWaitF&& onWorldLockWait)
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
+			"JoltTickWorldHost::bind: a free-running authority binds on its runner; "
+			"the game thread reaches it through queues only (E10)");
 		BodyId parentBodyId;
 		{
 			const double worldLockWaitStartSeconds = m_engine.nowSeconds();
@@ -432,6 +449,8 @@ public:
 
 	JoltSpatialQueryAdapter& editVizQuery()
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning,
+			"JoltTickWorldHost::editVizQuery: a free-running authority has no game-thread viz world");
 		if (m_threadContext.stepsInline())
 		{
 			if constexpr (kDiagnostics)
@@ -445,6 +464,8 @@ public:
 
 	const JoltPhysicsBodyReaderAdapter& getVizReader() const
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning,
+			"JoltTickWorldHost::getVizReader: a free-running authority has no game-thread viz world");
 		if (m_threadContext.stepsInline())
 		{
 			if constexpr (kDiagnostics)
@@ -460,6 +481,8 @@ public:
 	std::optional<QueryVolumeId> registerVizVolume(const QueryVolumeDescriptor& descriptor, uint64_t key, const char* name,
 		bool isAuthority, std::optional<uint32_t> replicatedSlot, PublishF&& publish)
 	{
+		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning,
+			"JoltTickWorldHost::registerVizVolume: a free-running authority has no game-thread viz world");
 		const std::optional<uint32_t> slot = acquire(key, name, isAuthority, replicatedSlot, std::forward<PublishF>(publish));
 		if (!slot.has_value())
 			return std::nullopt;
@@ -671,6 +694,7 @@ private:
 		JoltWorldConfig shadowConfig = stepConfig;
 		shadowConfig.ringDepthTicks     = 0u;
 		shadowConfig.tempAllocatorBytes = joltTickWorldHost::kShadowTempAllocatorBytes;
+		shadowConfig.accessCheck        = nullptr;
 
 		// ⛔G-03  docs/JoltTickWorldHost-guards.md
 		m_worlds.shadowWorld.emplace(m_worlds.runtime->runtime, shadowConfig, m_log);

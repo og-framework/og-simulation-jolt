@@ -36,8 +36,17 @@ Jolt's body interface is not internally locked here (`JoltWorld::bodies` is the 
 the reader is a step-thread object unless the host serialises it with the step (the M1 world mutex).
 That is a change from the old UE-only Jolt reader, which assumed a locked interface and could be called
 from anywhere. `isBodyResolvable` reads the bindings, which are game-thread data in M1
-(`JoltPhysicsBodyAdapter-rationale.md` §5).
+(`JoltPhysicsBodyAdapter-rationale.md` §5). A host that installs the world's entry check makes a call
+outside those rules fail in Development (§5).
 
-## §5 Guards
+## §5 Entry check
+
+`getBodyTransform`, `getBodyInertiaTensor`, `captureBodyState` and `getBodyMass` start with
+`OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyReaderAdapter::<member>: …")`, the world's predicate
+(`JoltWorld-rationale.md` §15), before the bound test. The free functions they call check again.
+`isBodyResolvable` and the constructor are exempt: they read only the bind table, which is not world state.
+The cost is the world's.
+
+## §6 Guards
 
 **None.**

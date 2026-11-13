@@ -23,8 +23,6 @@
 #include "OGSimulation/SpatialQueryAdapter.h"
 #include "OGSimulation/SpatialQueryResult.h"
 
-using JoltWorldAccessCheckFn = bool (*)();
-
 class JoltWorldAccessScope
 {
 public:

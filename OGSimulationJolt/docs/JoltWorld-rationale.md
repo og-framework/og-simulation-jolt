@@ -200,9 +200,11 @@ after-step observer (§14) runs after the scope has closed, in the caller's own 
 
 ## §10 Threading and access
 
-The world is single-threaded: every member, and `bodies`, `query` and `physics`, must be called from the
-thread that steps it. `bodies` returns Jolt's non-locking body interface. Nothing here checks the
-thread; the host decides which thread owns the world. The after-step observer (§14) runs on that thread too.
+The world is single-threaded: every member, and `bodies`, `query` and `physics`, must be serialised with
+the step: called on the thread that steps it, or by a host that holds the world lock so the step cannot
+run. `bodies` returns Jolt's non-locking body interface. The host decides which thread owns the world. By
+default the world does not check the caller; a host can install a check (§15). The after-step observer
+(§14) runs on the stepping thread.
 
 ## §11 What the tests show (2026-10-07, Win64 Development and standalone Debug with Jolt asserts)
 
@@ -337,3 +339,61 @@ tick, not once per replayed step. A host uses it to drain a `JoltContactCounter`
 
 **Measured:** `JoltContactCounter.AWorldWithTheCounterStepsBitIdenticallyToOneWithout` drains its
 counter through the observer and checks it ran once per step (240 of 240).
+
+## §15 Entry check: `callerMayAccess`
+
+`JoltWorldConfig::accessCheck` is a `JoltWorldAccessCheckFn`, a plain `bool (*)()` declared in this header
+(`JoltSpatialQueryConfig::accessCheck` uses the same alias). The world stores it at construction, and
+`callerMayAccess()` returns `m_accessCheck == nullptr || m_accessCheck()`.
+
+- **Off by default.** The default is `nullptr`: every caller may access, on every thread, as before the
+  check existed. A `static_assert` in the header pins the default. This differs from the spatial query
+  adapter, which falls back to `JoltWorldAccessScope::isOpenOnThisThread()` when no check is supplied.
+- **Who installs one.** A host that steps the world on a dedicated thread passes the tick driver thread
+  context's `entryCheck()` (og-simulation's `TickDriverThreadContext-rationale.md` §8). It is non-null only
+  for a `FreeRunning` authority, and it is true on the owner thread, inside a step and under the world
+  lock. `JoltTickWorldHost` installs none.
+- **What is checked.** The first statement of each of these public members is
+  `OG_CHECK(callerMayAccess(), "JoltWorld::<member>: called off the world's owning thread, …")`:
+  - the step and its wiring: `step`, `setAfterStepObserver`;
+  - the ring and the scratch: `saveTick`, `restoreTick`, `restoreFromSnapshot`, `hasTick`, `oldestHeldTick`,
+    `invalidateAllTicks`, `saveScratch`, `commitScratch`, `stateHash`, `ring`;
+  - the physics state, and the configuration that rolls back with it: `applyBodySlotOccupancy`,
+    `appliedBodySlotOccupancy`, both `shapeEnables`, `createStaticBody`, `liveStateHash`, `physicsStepCount`,
+    `contactOverflowCount`;
+  - the handles into Jolt: both `physics`, both `bodies`, and `query`.
+
+  Private members carry no check. Each is reached only from a checked member, or from the constructor or
+  the destructor.
+- **What is exempt, and why.**
+  - The constructor and the destructor. No other caller can reach the world before construction returns
+    or once destruction has started, and a host may destroy the world on another thread after its
+    stepping thread has exited. So neither they nor the build path they call (`buildSlotBodies`,
+    `applyBodySlotOccupancyToSlots`) go through a checked accessor: they take the body interface from the
+    physics system directly. `JoltWorld.AccessCheck.TheInstalledPredicateDecidesForTheWorldAndBothAdapters`
+    constructs and destroys its world with the check returning false. A destructor that called `bodies()`
+    instead failed that case on `JoltWorld::bodies`.
+  - `simulatableSlots`, `bodiesPerSlot`, `slotBodyId` and `templateLayer` read build-time layout: the slot
+    count, the template and the id formula are fixed by the constructor.
+  - `layers`: the constructor builds the layer table, and the world hands it out only as const.
+  - `callerMayAccess` itself reads only the check stored at construction.
+- **A handle is checked when it is taken.** `physics`, `bodies` and `query` return references into Jolt.
+  The check covers taking the reference, not a later use of a reference kept from an allowed call.
+- **Cost.** In Development with no check installed, each checked call pays one load and compare. With one
+  installed it pays one indirect call; the `FreeRunning` predicate then reads at most three thread-locals
+  (the step and world-lock role bits, then the owner count). In Shipping, `OG_CHECK` is `checkf`, which is
+  compiled out with its condition, so nothing runs. In the standalone build it is `assert`, compiled out
+  under `NDEBUG`.
+- **The message** names the member, and the item it implements: og-simulationscheduler-withjolt's task
+  39, review item RW2 m4 (a game-thread call into a world the sim thread owns should fail loudly in
+  Development).
+- **The body adapters** check through `callerMayAccess()` too (`JoltPhysicsBodyAdapter-rationale.md` §10,
+  `JoltPhysicsBodyReaderAdapter-rationale.md` §5).
+
+**Tests** (og-simulation-tests, Jolt/JoltWorldAccessCheckTest.cpp):
+- `JoltWorld.AccessCheck.WithoutACheckEveryCallerMayAccess`: with the default configuration,
+  `callerMayAccess()` is true on the test thread and on another thread.
+- `JoltWorld.AccessCheck.TheInstalledPredicateDecidesForTheWorldAndBothAdapters`: the predicate reads a
+  thread-local flag. With the flag false, the world refuses. With it true, a body adapter set and get, the
+  reader's reads, a step and a save succeed, and another thread is still refused.
+- The hidden `[.][JoltWorldAccessCheckFires]`: with the flag false, `setBodyTransform` fails its `OG_CHECK`.

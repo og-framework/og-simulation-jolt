@@ -182,6 +182,7 @@ namespace
 JoltWorld::JoltWorld(JoltRuntime& runtime, const JoltWorldConfig& config, JoltWorldLoggerFn logger)
 	: m_logger(std::move(logger))
 	, m_clock(config.clock != nullptr ? config.clock : &steadyClockSeconds)
+	, m_accessCheck(config.accessCheck)
 	, m_simulatableSlots(config.simulatableSlots)
 	, m_layers(layerKeysOf(config))
 	, m_tempAllocator(config.tempAllocatorBytes)
@@ -209,7 +210,7 @@ JoltWorld::JoltWorld(JoltRuntime& runtime, const JoltWorldConfig& config, JoltWo
 
 JoltWorld::~JoltWorld()
 {
-	JPH::BodyInterface& bodyInterface = bodies();
+	JPH::BodyInterface& bodyInterface = m_physics.GetBodyInterfaceNoLock();
 	m_physics.GetBodies(m_liveBodies);
 	for (const JPH::BodyID& id : m_liveBodies)
 	{
@@ -223,7 +224,7 @@ JoltWorld::~JoltWorld()
 
 void JoltWorld::buildSlotBodies(const JoltWorldConfig& config)
 {
-	JPH::BodyInterface& bodyInterface = bodies();
+	JPH::BodyInterface& bodyInterface = m_physics.GetBodyInterfaceNoLock();
 	const JPH::RVec3 parkingPosition = joltSeam::toJolt(config.parkingPosition);
 
 	std::vector<JPH::RefConst<JPH::Shape>> shapes;
@@ -282,6 +283,7 @@ JPH::ObjectLayer JoltWorld::templateLayer(uint32_t templateIndex) const
 
 JPH::BodyID JoltWorld::createStaticBody(const JPH::BodyCreationSettings& settings)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::createStaticBody: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	OG_CHECK(settings.mMotionType == JPH::EMotionType::Static, "JoltWorld::createStaticBody - the settings are not static");
 	OG_CHECK(m_layers.keyOf(settings.mObjectLayer).broadPhaseClass == JoltBroadPhaseClass::Static,
 		"JoltWorld::createStaticBody - the object layer is not a STATIC-class layer of this world's table");
@@ -298,6 +300,7 @@ JPH::BodyID JoltWorld::createStaticBody(const JPH::BodyCreationSettings& setting
 
 void JoltWorld::step(float dt)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::step: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	{
 		JoltStepFpScope fpScope;
 		OG_CHECK(isExpectedJoltStepFpMode(readJoltFpMode()),
@@ -318,6 +321,7 @@ void JoltWorld::step(float dt)
 
 void JoltWorld::setAfterStepObserver(JoltWorldAfterStepFn observer, void* context)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::setAfterStepObserver: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	OG_CHECK(observer == nullptr || m_afterStep == nullptr,
 		"JoltWorld::setAfterStepObserver - an observer is already set; clear it (nullptr) before setting another");
 	m_afterStep = observer;
@@ -358,6 +362,7 @@ void JoltWorld::reportUpdateErrors(JPH::EPhysicsUpdateError errors)
 
 void JoltWorld::saveTick(SimTick tick)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::saveTick: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	JoltStateSlot* slot = m_ring.slotForSave(tick);
 	if (slot == nullptr)
 	{
@@ -369,11 +374,13 @@ void JoltWorld::saveTick(SimTick tick)
 
 void JoltWorld::saveScratch()
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::saveScratch: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	saveInto(m_ring.scratch(), 0u);
 }
 
 void JoltWorld::commitScratch(SimTick tick)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::commitScratch: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	m_ring.commit(m_ring.scratch(), tick);
 	m_lastSavedTick = tick;
 }
@@ -404,6 +411,7 @@ void JoltWorld::saveInto(JoltStateSlot& slot, SimTick tick)
 
 bool JoltWorld::restoreTick(SimTick tick)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::restoreTick: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	const JoltStateSlot* slot = m_ring.find(tick);
 	if (slot == nullptr)
 	{
@@ -414,6 +422,7 @@ bool JoltWorld::restoreTick(SimTick tick)
 
 bool JoltWorld::restoreFromSnapshot(const JoltStateSlot& slot)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::restoreFromSnapshot: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	if (!slot.valid)
 	{
 		log("[Warning] JoltWorld: restoreFromSnapshot refused: the slot holds no snapshot; the world is unchanged");
@@ -492,33 +501,38 @@ bool JoltWorld::liveBodySetMatches(const JoltStateSlot& slot)
 
 bool JoltWorld::hasTick(SimTick tick) const
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::hasTick: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	return m_ring.find(tick) != nullptr;
 }
 
 std::optional<SimTick> JoltWorld::oldestHeldTick() const
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::oldestHeldTick: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	return m_ring.oldestHeldTick();
 }
 
 void JoltWorld::invalidateAllTicks()
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::invalidateAllTicks: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	m_ring.invalidateAll();
 }
 
 std::optional<uint64_t> JoltWorld::stateHash(SimTick tick) const
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::stateHash: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	const JoltStateSlot* slot = m_ring.find(tick);
 	return slot != nullptr ? std::optional<uint64_t>(slot->stateHash) : std::nullopt;
 }
 
 void JoltWorld::applyBodySlotOccupancy(const BodySlotOccupancy& occupancy)
 {
+	OG_CHECK(callerMayAccess(), "JoltWorld::applyBodySlotOccupancy: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
 	applyBodySlotOccupancyToSlots(occupancy, false);
 }
 
 void JoltWorld::applyBodySlotOccupancyToSlots(const BodySlotOccupancy& occupancy, bool forceEverySlot)
 {
-	JPH::BodyInterface& bodyInterface = bodies();
+	JPH::BodyInterface& bodyInterface = m_physics.GetBodyInterfaceNoLock();
 	for (uint32_t slot = 0; slot < m_simulatableSlots; ++slot)
 	{
 		const bool occupied = occupancy.occupied.test(slot);
@@ -546,7 +560,8 @@ void JoltWorld::applyBodySlotOccupancyToSlots(const BodySlotOccupancy& occupancy
 
 uint64_t JoltWorld::liveStateHash() const
 {
-	const JPH::BodyInterface& bodyInterface = bodies();
+	OG_CHECK(callerMayAccess(), "JoltWorld::liveStateHash: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+	const JPH::BodyInterface& bodyInterface = m_physics.GetBodyInterfaceNoLock();
 	StateHash hash;
 	for (uint32_t slot = 0; slot < m_simulatableSlots; ++slot)
 	{

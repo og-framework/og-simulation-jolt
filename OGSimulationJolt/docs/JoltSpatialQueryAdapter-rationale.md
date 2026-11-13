@@ -47,6 +47,12 @@ marker: a thread-local depth counter. The host opens one wherever it may touch t
 step, and wherever it holds the world mutex), which is the "in step / holds the mutex" flag pair the
 rewire design asks for. A host with its own flags passes them as `accessCheck` instead.
 
+`JoltWorldAccessCheckFn` is declared in `JoltWorld.h`, which this header includes, and
+`JoltWorldConfig::accessCheck` takes the same type. The two defaults differ: with no check supplied this
+adapter uses `JoltWorldAccessScope::isOpenOnThisThread()`, while a world with none lets every caller in
+(`JoltWorld-rationale.md` §15). The adapter reaches Jolt through the world's checked accessors, so a world
+with a check installed checks these calls a second time, with its own predicate.
+
 The adapter takes no lock itself and reads Jolt through the world's no-lock interfaces, like
 `JoltWorld` (the world is single-threaded by contract).
 

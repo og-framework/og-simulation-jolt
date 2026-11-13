@@ -201,3 +201,29 @@ changed bits. It counted 793 in centimetres and 984 in metres, but the 984 came 
 clamp, not from the centre-of-mass step: its 1,500-unit velocity range meant 15 m/s in centimetres and
 1,500 m/s after flip U, above the 500 m/s limit, and a replay of its seeded draws finds exactly 984 of
 the 1,000 states over that limit.
+
+## §10 Entry check
+
+Every public member that reaches the world starts with
+`OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::<member>: …")`, and each of the four free
+functions with `OG_CHECK(world.callerMayAccess(), "<function>: …")`. The predicate is the world's
+(`JoltWorld-rationale.md` §15): with none installed, the default, every caller passes.
+
+- **Checked:** `getBodyTransform`, `setBodyTransform`, `setBodyPose`, `addBodyTorque`,
+  `setBodyAngularVelocity`, `setBodyLinearVelocity`, `addBodyAcceleration`, `addBodyVelocityChange`,
+  `getBodyInertiaTensor`, `captureBodyState` and `getBodyMass`; and `joltBodyTransformOf`,
+  `joltBodyStateOf`, `joltBodyMassOf` and `joltBodyInertiaOf`. The check comes before the slot-body check,
+  so a call from the wrong thread fails even for an id that is not a slot body.
+- **Exempt:**
+  - `bodyIdOf` and `joltBodyIdOf` are static id conversions and touch no world.
+  - `bindTable()` and `isBodyResolvable` reach only the bind table, which is not world state. In M1 its
+    bindings are game-thread data (§5), and the UE host's registration polls `isBodyResolvable` on the
+    game thread (guard G-01).
+  - `world()` returns the reference; the world's own accessors check.
+  - The constructor reads only the world's build-time layout (`simulatableSlots`, `bodiesPerSlot`).
+  - `JoltBodyBindTable` has no check (§5).
+- **Two layers.** The members reach Jolt through the world's checked `bodies()` and `physics()`, so a
+  member that lost its own check is still caught, by the world's message instead. With the check removed
+  from `setBodyTransform`, the hidden `[.][JoltWorldAccessCheckFires]` case failed on `JoltWorld::bodies`;
+  with the check in the non-const `bodies()` removed as well, it passed.
+- **Cost:** as the world's (`JoltWorld-rationale.md` §15).

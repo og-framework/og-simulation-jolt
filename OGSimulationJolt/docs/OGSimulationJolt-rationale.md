@@ -55,8 +55,9 @@ builds, empty in monolithic ones).
   (og-input-latency task 21), beside `JPH_OBJECT_LAYER_BITS=16` (`JoltDefineChecks-rationale.md` §2).
 - `og_jolt_physics` gets the floating-point options og-simulation gives `og_simulation` (og-input-latency task 20):
   `/fp:precise` with MSVC, `/fp:precise /clang:-ffp-contract=off` with clang-cl, `-ffp-contract=off` otherwise, all
-  `PUBLIC`. The Jolt sources do not link `og_simulation`, so they would not inherit them; this library inherits them through
-  `og_simulation`. Why the mode is one for all simulation code: og-simulation's `FloatingPointMode-rationale.md`.
+  `PUBLIC`. `og_jolt_physics` (the vendored Jolt sources) does not link `og_simulation`, so it would not inherit them and
+  sets them itself. `og_simulation_jolt` links both publicly, so it gets the same options from each. Why the mode is one
+  for all simulation code: og-simulation's `FloatingPointMode-rationale.md`.
 
 ## §3 The Unreal module shell (`OGSimulationJolt.Build.cs`, og-simulation-ue)
 

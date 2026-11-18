@@ -13,7 +13,15 @@ add_library(og_jolt_physics STATIC ${OGJOLT_JOLT_SOURCES})
 
 target_include_directories(og_jolt_physics PUBLIC ${OGJOLT_JOLT_ROOT})
 
-target_compile_definitions(og_jolt_physics PUBLIC JPH_OBJECT_LAYER_BITS=16)
+target_compile_definitions(og_jolt_physics PUBLIC JPH_OBJECT_LAYER_BITS=16 JPH_CROSS_PLATFORM_DETERMINISTIC)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(og_jolt_physics PUBLIC /fp:precise)
+elseif(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(og_jolt_physics PUBLIC /fp:precise /clang:-ffp-contract=off)
+else()
+    target_compile_options(og_jolt_physics PUBLIC -ffp-contract=off)
+endif()
 
 option(OGJOLT_ENABLE_ASSERTS "Define JPH_ENABLE_ASSERTS (changes JPH_VERSION_ID)" OFF)
 if(OGJOLT_ENABLE_ASSERTS)

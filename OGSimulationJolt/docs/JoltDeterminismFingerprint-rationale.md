@@ -45,7 +45,7 @@ floor centre keeps the -0 the wrapper placed). The world's default gravity (`Jol
 Stable across runs of the same binary: `JoltDeterminismFingerprint.StableAcrossTwoRunsOfTheSameBinary`.
 
 Pinned on x64: `JoltDeterminismFingerprint.PinnedValueWin64` checks that the value is
-`0xe54d2bc380288c01`. It is compiled only where `_M_X64` is defined (64-bit MSVC); other architectures
+`0xda3fb8fcd6728b59`. It is compiled only where `_M_X64` is defined (64-bit MSVC); other architectures
 are not pinned. A change to the probe, to Jolt or to its build flags that moves the value fails it, and
 an intended change re-pins it in the same change.
 
@@ -55,14 +55,25 @@ simulation's axis frame became the right-handed Y-up one it is `0xe54d2bc380288c
 capsule now lie along Jolt's Y axis, and the capsule is a plain capsule instead of a rotated-translated
 shape.
 
+It changed a second time at og-input-latency task 20 (2026-11-18), a build-flag change: the Unreal modules that
+compile this library and its tests went from `/fp:fast` to `/fp:precise` (`FPSemantics = Precise`). It was
+`0xe54d2bc380288c01` under `/fp:fast` and `0x5b361d9e73dbf59b` after it. A `/fp:fast` build and a `/fp:precise` build
+therefore have different fingerprints, which is the point: they do not simulate alike.
+
+It changed a third time at og-input-latency task 21 (2026-11-18): Jolt is compiled with
+JPH_CROSS_PLATFORM_DETERMINISTIC, which sets a feature bit of the version id (`JoltDefineChecks-rationale.md` §2).
+It was `0x5b361d9e73dbf59b` without the define and is `0xda3fb8fcd6728b59` with it. Only the version id moved it: the
+probe simulation state hash is `0x760a916b2074a131` with and without the define (measured on x64): the probe scene
+simulated bit for bit alike.
+
 ## §3 The cross-platform-determinism toggle
 
 `JoltDeterminismFingerprint.ChangesWhenCrossPlatformDeterminismIsToggled` uses a second test
-translation unit that defines JPH_CROSS_PLATFORM_DETERMINISTIC before including Jolt and returns the
-version id it sees. That id differs from the library's in exactly the cross-platform-determinism
-feature bit, and a fingerprint carrying it has a different `value()` and a mismatch message that names
-the define. The library itself is not rebuilt with the define: the test proves the fingerprint is
-sensitive to the bit, not that the toggled build simulates differently.
+translation unit that removes JPH_CROSS_PLATFORM_DETERMINISTIC (the library defines it since og-input-latency
+task 21) before including Jolt and returns the version id it sees. That id differs from the library's in
+exactly the cross-platform-determinism feature bit, and a fingerprint carrying it has a different `value()`
+and a mismatch message that names the define. The library itself is not rebuilt without the define: the
+test proves the fingerprint is sensitive to the bit, not that the toggled build simulates differently.
 
 ## §4 Debug builds have a different fingerprint, on purpose
 

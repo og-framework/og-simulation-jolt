@@ -8,6 +8,9 @@ bodies: a query places the volume's shape at a pose and asks the world's narrow 
 
 **If this file and the sources disagree, the sources are authoritative and this file is stale.**
 
+<!-- lint-external-ref: ConvexShape::sCollideConvexVsConvex -- vendored Jolt v5.6.0 under ThirdParty/, which the lint does not index -->
+
+
 The adapter reproduces the Chaos-backed query adapter of the Unreal host (UE-sim's
 ChaosSpatialQueryAdapter.h/.cpp, not distributed with this repository) and the result semantics of
 og-simulation's `SpatialQueryResult.h`. Where this file names that adapter, an Unreal Engine 5.6 source
@@ -82,6 +85,21 @@ ids and child order are a pure function of the description (its own rationale), 
 peer-stable too. After the key, a deeper penetration and then the raw sub-shape id break ties, so the
 order is fully determined. Every report is sorted by it (guard G-06); the Chaos adapter returned the
 engine's order, which the hit loop's order dependence made a cross-peer hazard.
+
+**Why the sort needs no further tie-break (task 23).** `std::sort` leaves equal elements in an order it
+does not specify, which can differ between MSVC's STL and libc++; a tie between two candidates that
+differ would therefore order differently across platforms. In `collideAt` none occurs. Two candidates
+with the same key come from the same body: a slot body's key is its binding (simulatable id,
+declaration index), a world binds one simulatable per slot, each body of a slot carries its own
+declaration index (`JoltTickWorldHost` numbers the slot template by position), parked bodies are
+filtered out (§7), and a static's key holds its body index. Within
+one body, Jolt reports at most one result per pair of leaf shapes (`ConvexShape::sCollideConvexVsConvex`
+and the triangle colliders each add one hit), and the query shapes are single leaves (sphere, box,
+capsule), so the sub-shape id differs between any two hits on one body. The key and the sub-shape id
+together are therefore unique, and the sort has no code change. ⚠ That rests on the host binding each
+simulatable to one slot; the adapter does not check it. A NaN penetration depth would also break the
+comparison (a NaN is neither less nor greater than any depth, so the tuple order stops being a strict
+weak order); only a non-finite query pose or shape can produce one.
 
 ## §4 `overlap`
 
@@ -206,7 +224,9 @@ elements with their categories (it has no "not queryable" field to set, and none
 og-simulation in M1) and only counts them. Of the two options the task text offers, a query-enable bit
 needs a new descriptor field, so the adapter **skips them in the query filter**:
 `excludeStaticBodiesFromQueries` takes static body ids, and the body filter drops them. They still
-collide (measured: a capsule rests on one).
+collide (measured: a capsule rests on one). The list holds body indices, sorted and de-duplicated so the
+filter can binary-search it; equal indices are the same value, so the sort has no tie to break
+across standard libraries (task 23).
 
 The host builds the PhysicsOnly elements with a second `JoltStaticWorldBuilder` (static bodies are
 grouped into compounds, so one body must not mix queryable and PhysicsOnly elements) and passes that

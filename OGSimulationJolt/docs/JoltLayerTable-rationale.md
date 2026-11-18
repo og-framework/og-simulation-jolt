@@ -43,6 +43,9 @@ numbers them in that order. The keys come from the slot template and from the st
 peers that build from the same template and description therefore get identical layer numbers
 whatever order the keys arrive in (`JoltLayerTable.AllocatesDeterministicallyAndIncludesParked`
 shuffles them). Layers are configuration, not simulated state, and are never saved in a snapshot.
+The sort needs no tie-break across standard libraries (task 23): `JoltLayerKey`'s comparison is the
+defaulted one over every member, so two keys that compare equal are the same value, and `std::unique`
+then keeps one.
 
 `layerOf` on a key the table was not built with fails an `OG_CHECK`; with checks compiled out it
 returns the PARKED layer, so the body collides with nothing rather than with the wrong things.

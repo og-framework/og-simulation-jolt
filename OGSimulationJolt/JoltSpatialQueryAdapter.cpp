@@ -192,7 +192,7 @@ JoltSpatialQueryAdapter::JoltSpatialQueryAdapter(JoltWorld& world, JoltWorldLogg
 	, m_accessCheck(config.accessCheck != nullptr ? config.accessCheck : &JoltWorldAccessScope::isOpenOnThisThread)
 {
 	OG_CHECK(m_mappedCategories != 0u,
-		"JoltSpatialQueryAdapter: JoltSpatialQueryConfig::mappedCategories is empty; pass the host's category table (the categories the Chaos adapter maps)");
+		"JoltSpatialQueryAdapter: JoltSpatialQueryConfig::mappedCategories is empty; pass the host's category table");
 	const uint32_t bodyIndexCount = 1u + world.simulatableSlots() * world.bodiesPerSlot();
 	m_rootIndexOf.resize(bodyIndexCount);
 	std::iota(m_rootIndexOf.begin(), m_rootIndexOf.end(), 0u);
@@ -524,8 +524,8 @@ void JoltSpatialQueryAdapter::diagnoseVolumeCategories(const QueryVolumeDescript
 	{
 		std::snprintf(line, sizeof(line),
 			"[Error] JoltSpatialQueryAdapter: [SpatialQuery.EmptyObjectQuery] volume=%u searchCategories=0x%08X mapped=0x%08X -- NOT ONE "
-			"requested category is mapped, so this volume runs as a TRACE-CHANNEL query on traceCategory=%u (what the Chaos adapter's "
-			"empty object-type set does too). Map the categories in the adapter's configuration or stop searching them.",
+			"requested category is mapped, so this volume runs as a TRACE-CHANNEL query on traceCategory=%u. "
+			"Map the categories in the adapter's configuration or stop searching them.",
 			volumeId.value, requested, m_mappedCategories, descriptor.traceCategory);
 		log(line);
 	}
@@ -543,8 +543,7 @@ void JoltSpatialQueryAdapter::diagnoseVolumeCategories(const QueryVolumeDescript
 	{
 		std::snprintf(line, sizeof(line),
 			"[Error] JoltSpatialQueryAdapter: [SpatialQuery.UnmappedTraceCategory] volume=%u traceCategory=%u mapped=0x%08X -- the "
-			"trace category is not mapped. A trace-channel query on this volume answers on that category's own bit; the Chaos adapter "
-			"traced on ECollisionChannel(0) (WorldStatic) instead.",
+			"trace category is not mapped. A trace-channel query on this volume answers on that category's own bit.",
 			volumeId.value, descriptor.traceCategory, m_mappedCategories);
 		log(line);
 	}

@@ -20,17 +20,18 @@ Every shape is **in** a 32-bit set of categories (`ShapeDescriptor::categories` 
 - `joltCollisionRule::queryMatches(objectIn, queryAnyOf)` is true when the object is in **any** of the
   queried categories.
 
-## §2 Why AND: it is the rule the Chaos build runs today
+## §2 Why AND: it is the rule the former Chaos build ran
 
 The Chaos-backed factory of the Unreal host (ChaosPhysicsFactory.cpp, function applyDescriptor, in
-the og-simulation-unreal module, which is not part of this repository) sets every channel to overlap,
-then sets the channels in `blockingCategories` to block, and gives the shape the object type of its
-first category. Chaos's collision filter requires
+the og-simulation-unreal module, which is not part of this repository; removed with the former Chaos
+configuration by og-session-runtime task 4) set every channel to overlap, then set the channels in
+`blockingCategories` to block, and gave the shape the object type of its first category. Chaos's
+collision filter requires
 both shapes to block each other before it creates a contact. So a pair where only one side lists the
-other overlaps, and does not collide. Running the same rule in Jolt keeps the Jolt build equivalent to
-the Chaos build.
+other overlaps, and does not collide. Running the same rule in Jolt kept the Jolt build equivalent to
+the Chaos build, and keeps the game's collision behaviour what it was.
 
-The Chaos side uses only the **first** category bit of a shape; Jolt sees every bit. The two agree as
+The Chaos side used only the **first** category bit of a shape; Jolt sees every bit. The two agree as
 long as every shape has exactly one category, which every shape of the game this backend was first
 built for does. The test `JoltCollisionRule.M1EquivalenceWithChaosForEveryBrawlerShapePair` lists every
 shape kind, asserts each is single-category, and compares this rule with a model of the Chaos filter

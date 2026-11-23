@@ -24,11 +24,12 @@ statement that picks the material from the descriptor's `isRoot`.
 `joltBodyDefaults::kAdoptedRootMaterial` (friction 0, restitution 0); every other body takes
 `joltBodyDefaults::kCreatedBodyMaterial`.
 
-**The consequence.** In Chaos the character capsule carries the game's own material (friction 0,
-restitution 0), and the game's capsule guards rely on restitution 0: the movement simulation adopts the
+**The consequence.** In the former Chaos configuration (removed by og-session-runtime tasks 3–6) the
+character capsule carried the game's own material (friction 0, restitution 0), and the game's capsule
+guards rely on restitution 0: the movement simulation adopts the
 solver's push-out each tick, so a bouncy capsule feeds a rebound back into the movement state. Giving
 the capsule 0.7 / 0.3 changes every capsule contact's restitution (combined with a default static: 0.3
-instead of 0.15) and the Jolt build stops matching the Chaos build. The capsule's own friction never
+instead of 0.15) and the Jolt build stops matching the Chaos parity it was built to. The capsule's own friction never
 reaches a contact: the world's friction combine gives every pair with a root friction 0
 (`JoltBodyDefaults-rationale.md` §5), which is the Jolt value that matches Chaos, not the 0.35 average.
 (Witnessed as a poison arm: `JoltPhysicsFactory.EveryBrawlerDeclarationBindsAChaosParityBody` failed.)

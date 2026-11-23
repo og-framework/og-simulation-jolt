@@ -52,8 +52,8 @@ must be destroyed before the matching release.
 - **Combine rules:** the constructor sets the physics system's friction and restitution combine
   functions to `joltBodyDefaults::combineFrictionAverageExceptRoots` / `combineRestitutionAverage`,
   Chaos's effective rule for every pair, statics included (`JoltBodyDefaults-rationale.md` §2), with
-  friction 0 for any pair that includes a root body, which is what reaches Chaos's movement simulation
-  (`JoltBodyDefaults-rationale.md` §5). They are not
+  friction 0 for any pair that includes a root body, which is what reached the movement simulation in
+  the former Chaos configuration (removed by og-session-runtime tasks 3–6; `JoltBodyDefaults-rationale.md` §5). They are not
   physics settings (guard G-01's block does not hold them) and not in a snapshot, so like the threshold
   they come from construction, which every peer runs identically. Each `JoltPhysicsFactory`
   constructor used to set them (idempotently); a world-wide rule belongs to the world, and
@@ -247,7 +247,7 @@ now bounce as they do in Chaos.
 
 Parity row for gate 22:
 
-| Setting | Chaos (today) | Jolt world | Verdict |
+| Setting | Chaos (the former Chaos configuration, removed by og-session-runtime tasks 3–6) | Jolt world | Verdict |
 |---|---|---|---|
 | Restitution velocity threshold | 1000 cm/s² × dt = 16.67 cm/s at 60 Hz | `kChaosParityMinVelocityForRestitution` = 0.1667 m/s | MATCH at 60 Hz |
 

@@ -25,7 +25,8 @@ Members outside the concept:
   `PhysicsBodyPoseWriter` capability, which is checked by a second `static_assert` beside the first: a
   signature slip then fails the build instead of making the restore push fall back to the matrix path.
 - `isBodyResolvable` — "this slot body is bound to a simulatable" (§5). Not in the concept; the UE host
-  calls it on the body adapter, as it does on the Chaos body adapter today.
+  calls it on the body adapter, as it did on the former Chaos body adapter (removed by og-session-runtime
+  task 4).
 - `getBodyMass` — kg, what Jolt integrates (1 / inverse mass). Used by the force seam and by tests.
 - `bodyIdOf` / `joltBodyIdOf` — the id mapping (§6).
 - `world`, `bindTable` — for the factory and the reader adapter.
@@ -45,8 +46,8 @@ og-simulation's axes. Jolt runs in the same units, so nothing is scaled at this 
 | angular velocity | rad/s | rad/s |
 | rotation | unit quaternion, glm (w, x, y, z) | unit quaternion, Jolt (x, y, z, w) |
 
-The Chaos body adapter converts to Unreal's centimetres and axes at its own edge (UE-sim's
-ChaosPhysicsBodyAdapter.h); this adapter has no edge to convert.
+The former Chaos body adapter (UE-sim's ChaosPhysicsBodyAdapter.h, removed by og-session-runtime
+task 4) converted to Unreal's centimetres and axes at its own edge; this adapter has no edge to convert.
 
 The conversions in `joltSeam` are type-only: `toJolt` and `toGlm` copy the three components of a vector,
 and `rotationToJolt` / `rotationToSeam` reorder a quaternion between glm's (w, x, y, z) and Jolt's
@@ -64,7 +65,8 @@ by 10⁴. Both were reproduced as poison arms against the tests while this adapt
 
 ## §3 Force-seam semantics
 
-Kept from the Chaos adapter and from the comments of the old Jolt adapter:
+Kept from the former Chaos adapter (removed by og-session-runtime task 4) and from the comments of the
+old Jolt adapter:
 
 - **`addBodyAcceleration`** accumulates an acceleration for this step; the engine applies force =
   a × mass. The mass is read from the body (1 / inverse mass), never from the shape: the factory
@@ -93,7 +95,7 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
   with an offset centre of mass can have it changed by an ULP (§9).
 - **`captureBodyState`** reads the body after the step. Jolt has no separate start-of-step and solved
   pose (Chaos's X/R versus P/Q), so the body's position after an update is the solved pose, the
-  counterpart of what the Chaos adapter reads.
+  counterpart of what the former Chaos adapter read.
 - Torque on a rotation-locked body changes nothing (Jolt's inverse inertia is zero there).
 
 ## §4 Inertia: what Jolt integrates
@@ -104,8 +106,8 @@ torque a·I produces exactly the angular acceleration a (`JoltBodyAdapter.TheRad
 60 ticks of the left-to-left swing match the analytic ω to 1.6e-6 rad/s).
 
 A **rotation-locked** body (the character capsule) is the exception: Jolt removes its rotational
-degrees of freedom by zeroing its inverse inertia, so there is nothing to invert. Chaos locks rotation
-with a joint and keeps reporting the body's inertia, so the adapter reports the parity inertia the
+degrees of freedom by zeroing its inverse inertia, so there is nothing to invert. Chaos locked rotation
+with a joint and kept reporting the body's inertia, so the adapter reports the parity inertia the
 factory recorded at bind time (`JoltBodyBindTable::lockedRotationInertiaOf`). A body with only some
 rotation axes locked has a singular inverse inertia; no M1 body has one, and `joltBodyInertiaOf` fails
 an `OG_CHECK` on it.
@@ -145,7 +147,7 @@ A `BodyId` holds the Jolt body id's index-and-sequence number. Slot bodies are c
 ids from 1 and sequence 0 (`JoltWorld-rationale.md`, the fixed body set), so `BodyId::value` = 1 +
 slot × bodiesPerSlot + template index, and the table index is `value - 1`. The adapter's members fail an
 `OG_CHECK` on a non-slot body and return the default value (identity transform, zero state) with checks
-compiled out, like the Chaos adapter's unresolved-body path.
+compiled out, like the former Chaos adapter's unresolved-body path.
 
 ## §7 Body user data
 

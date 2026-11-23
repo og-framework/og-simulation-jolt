@@ -27,7 +27,8 @@ therefore in kg·m² and equals the Chaos value (Unreal's kg·cm² × 1e-4) for 
 ## §3 `isBodyResolvable` means bound
 
 As on the body adapter: the body is bound to a simulatable (`JoltBodyBindTable::isBound`), never "the
-slot is occupied". An unbound body reads as the Chaos reader's unresolved body does: identity transform,
+slot is occupied". An unbound body reads as the former Chaos reader's unresolved body did (removed by
+og-session-runtime task 4): identity transform,
 zero inertia, default state, zero mass.
 
 ## §4 Threads

@@ -23,18 +23,19 @@ statement that picks the last element of `volumeIds`.
 **The prohibition.** Do not query every volume of the list and concatenate (or merge) the hits, and do
 not pick the first volume. `overlap` answers with the hits of the last volume in the list.
 
-**The consequence.** That is what the Chaos adapter does: its engine call resets the output array on
-every call, so of a multi-volume list only the last call's hits survive (rationale §4). The brawler's
+**The consequence.** That is what the former Chaos adapter did (removed by og-session-runtime task 4):
+its engine call reset the output array on every call, so of a multi-volume list only the last call's
+hits survived (rationale §4). The brawler's
 radial attack registers two co-centred spheres (radius r and 2r) and passes both. A concatenation reports
 every target inside the inner sphere twice, and the order-dependent hit loop then merges or routes the
-duplicate as a second hit: the Jolt build stops matching the Chaos build. A deduplicated union happens to
+duplicate as a second hit: the Jolt build stops matching the Chaos parity it was built to. A deduplicated union happens to
 equal the outer sphere for that one caller and differs for any two volumes that do not nest.
 (Witnessed as a poison arm: `JoltSpatialQuery.OverlapReportsOnlyTheLastVolumeAsTheChaosAdapterDoes`
 failed.)
 
 **What breaks if it moves.** Nothing while the tag stays on the volume selection. If the user rules that
-the union is the intended semantics, this guard is retired together with the matching change in the
-Chaos adapter.
+the union is the intended semantics, this guard is retired (there is no Chaos adapter to change with it
+since og-session-runtime task 4).
 
 ## G-02 — the query pose is the volume's TRANSLATION only; never apply its rotation
 
@@ -45,11 +46,12 @@ statement that builds the pose.
 transform, of the volume's `offsetTransform`, or of a sweep's `transform`. The pose is a pure translation
 (plus the shape's centre of mass).
 
-**The consequence.** The Chaos adapter passes the identity rotation and only the translation of
-the parent transform times the offset (the sweep transform times the offset for a sweep) to the engine. Every box and capsule volume is
-therefore axis-aligned in Chaos, and the ground probe's capsule stays upright however the character is
-turned. Applying the rotation turns boxes and capsules on this backend only: hit sets and sweep fractions
-differ from Chaos whenever a parent transform carries a yaw. (Witnessed as a poison arm:
+**The consequence.** The former Chaos adapter (removed by og-session-runtime task 4) passed the identity
+rotation and only the translation of the parent transform times the offset (the sweep transform times
+the offset for a sweep) to the engine. Every box and capsule volume was therefore axis-aligned in Chaos,
+and the ground probe's capsule stays upright however the character is turned. Applying the rotation
+turns boxes and capsules: hit sets and sweep fractions differ from that Chaos parity whenever a parent
+transform carries a yaw. (Witnessed as a poison arm:
 `JoltSpatialQuery.TheQueryPoseIgnoresTheVolumeRotationAsTheChaosAdapterDoes` failed.)
 
 **What breaks if it moves.** Nothing while every query goes through `queryPoseOf`.
@@ -63,7 +65,8 @@ the statement that enables the shape's bit in the world's `ShapeEnableTable`.
 value.
 
 **The consequence.** Shape ids are fixed per slot body, so a slot that a new character joins reuses the
-previous occupant's ids and bits. A Chaos join creates a new component, whose shape is query-enabled.
+previous occupant's ids and bits. A join in the former Chaos configuration (removed by og-session-runtime
+tasks 3–6) created a new component, whose shape was query-enabled.
 Without the enable, the newcomer inherits whatever the previous occupant left (a lowered guard stays
 disabled), and a peer that never saw the previous occupant (a late joiner) holds the default, enabled
 bit: the peers' queries disagree about the same character. (Witnessed as a poison arm:
@@ -97,8 +100,9 @@ directly above the statement that chooses the object filter or the trace filter.
 **The prohibition.** Do not make a volume whose mapped search mask is empty match nothing, and do not
 send it through the object filter. It answers on its `traceCategory` with the trace filter.
 
-**The consequence.** The Chaos adapter stores an empty object-type set for such a volume, and UE builds
-a trace-channel query whenever the object-type set is empty (rationale §5). It is the documented mode of a
+**The consequence.** The former Chaos adapter (removed by og-session-runtime task 4) stored an empty
+object-type set for such a volume, and UE builds a trace-channel query whenever the object-type set is
+empty (rationale §5). It is the documented mode of a
 volume with empty `searchCategories`, and it is also what a volume whose every search bit is unmapped
 does. A "matches nothing" rewrite makes those volumes silently blind on this backend only. (Witnessed as
 a poison arm: `JoltSpatialQuery.AnEmptySearchIsATraceChannelQuery` failed.)
@@ -131,9 +135,9 @@ statement that sets the cast's back-face mode.
 
 **The consequence.** With the default, Jolt drops a hit on a convex target the sweep starts inside
 whenever the sweep direction points against the contact normal, i.e. out of the target (it counts as a
-back-face hit). The Chaos adapter's sweep sets bFindInitialOverlaps and reports every initial overlap
-at fraction 0, whatever the direction. Under the default, a sweep that starts inside the floor and moves
-up returns a miss on this backend only, where Chaos returns `blocked` at fraction 0 (measured: the
+back-face hit). The former Chaos adapter's sweep (removed by og-session-runtime task 4) set
+bFindInitialOverlaps and reported every initial overlap at fraction 0, whatever the direction. Under the
+default, a sweep that starts inside the floor and moves up returns a miss, where Chaos returned `blocked` at fraction 0 (measured: the
 poison arm below). Today's only sweep caller, the ground probe, sweeps down into its support; by Jolt's
 code (a greater-or-equal-zero dot-product test in the convex cast) that hit is kept even under the default, so the probe
 is not affected in that case, and every sweep moving out of a body it starts in is. (Witnessed as a
@@ -150,9 +154,9 @@ statement that reads the position for a slot-body hit.
 **The prohibition.** Do not report the position of the body that was hit (the weapon, guard or projectile
 body) as `objectPosition`.
 
-**The consequence.** The Chaos adapter reports the hit's actor location, and every shape the Chaos
-factory creates belongs to the character actor, so a hit on a guard or weapon reports the character's
-(capsule's) location. The game's hit detection measures the hit direction from `objectPosition`; the
+**The consequence.** The former Chaos adapter (removed by og-session-runtime task 4) reported the hit's
+actor location, and every shape the Chaos factory created belonged to the character actor, so a hit on a
+guard or weapon reported the character's (capsule's) location. The game's hit detection measures the hit direction from `objectPosition`; the
 hit body's position turns that direction and the Jolt build stops matching. (Witnessed as a poison arm:
 `JoltSpatialQuery.OverlapHitAndMiss` failed.)
 

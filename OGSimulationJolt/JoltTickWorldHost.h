@@ -40,13 +40,13 @@
 #include "OGSimulation/QueryGeometry.h"
 #include "OGSimulation/RenderInterpolation.h"
 #include "OGSimulation/SimulationComposite.h"
-#include "OGSimulation/SimulationTickBackend.h"
+#include "OGTickDriver/SimulationTickBackend.h"
 #include "OGSimulation/SimulationTimeContext.h"
 #include "OGSimulation/StaticGeometry.h"
 #include "OGSimulation/StepHooks.h"
-#include "OGSimulation/TickDriverLog.h"
-#include "OGSimulation/TickDriverThreadContext.h"
-#include "OGSimulation/TickSlotTable.h"
+#include "OGTickDriver/TickDriverLog.h"
+#include "OGTickDriver/TickDriverThreadContext.h"
+#include "OGTickDriver/TickSlotTable.h"
 
 template <typename E>
 concept JoltTickHostEngine = TickSlotLogTarget<E> && requires(const E& engine)

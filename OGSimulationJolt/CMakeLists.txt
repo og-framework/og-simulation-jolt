@@ -56,4 +56,4 @@ target_include_directories(og_simulation_jolt PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(og_simulation_jolt PUBLIC og_simulation og_jolt_physics)
+target_link_libraries(og_simulation_jolt PUBLIC og_simulation og_tickdriver og_jolt_physics)

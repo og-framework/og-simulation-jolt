@@ -364,8 +364,8 @@ public:
 		PublishF&& publish)
 	{
 		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
-			"JoltTickWorldHost::acquire: a free-running authority binds on its runner; "
-			"the game thread reaches it through queues only (E10)");
+			"JoltTickWorldHost::acquire: a free-running authority acquires its slots on its runner; "
+			"every other thread reaches it through queues only");
 		const bool alreadyHeld = m_slots.slotOf(key).has_value();
 		const std::optional<uint32_t> slot = m_slots.acquire(key, name, isAuthority, replicatedSlot);
 		if (slot && isAuthority && !alreadyHeld)
@@ -377,8 +377,8 @@ public:
 	std::optional<uint32_t> release(uint64_t key, unsigned int id, PushBodySlotOccupancyF&& pushBodySlotOccupancy)
 	{
 		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
-			"JoltTickWorldHost::release: a free-running authority binds on its runner; "
-			"the game thread reaches it through queues only (E10)");
+			"JoltTickWorldHost::release: a free-running authority releases on its runner; "
+			"every other thread reaches it through queues only");
 		const std::optional<uint32_t> slot = m_slots.release(key);
 		if (!slot.has_value())
 			return std::nullopt;
@@ -407,7 +407,7 @@ public:
 	{
 		OG_CHECK(m_threadContext.threading() != StepThreading::FreeRunning || m_threadContext.isOwnerThreadForRole(),
 			"JoltTickWorldHost::bind: a free-running authority binds on its runner; "
-			"the game thread reaches it through queues only (E10)");
+			"every other thread reaches it through queues only");
 		BodyId parentBodyId;
 		{
 			const double worldLockWaitStartSeconds = m_engine.nowSeconds();
@@ -517,7 +517,7 @@ public:
 
 		ShadowStateSlot* const target = m_shadowSlots.beginWrite();
 		OG_CHECK(target != nullptr,
-			"JoltTickWorldHost::afterTick_Step: the shadow hand-over channel has no free slot. The game thread holds at most one "
+			"JoltTickWorldHost::afterTick_Step: the shadow hand-over channel has no free slot. The frame thread holds at most one "
 			"slot (the newest, for one restore), and a 3-slot channel keeps a free slot for one. Was the checkf of the brawler's "
 			"publishShadowSlot_Step.");
 		if (target == nullptr)

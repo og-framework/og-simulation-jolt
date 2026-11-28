@@ -80,8 +80,10 @@ the slot occupied in the step after its character left.
 `m_worlds.shadowWorld.emplace(m_worlds.runtime->runtime, shadowConfig, m_log);`.
 
 **The prohibition.** ⛔ Do not build the shadow world from any configuration but the step world's, with
-exactly two fields changed: `ringDepthTicks` (0) and `tempAllocatorBytes` (`kShadowTempAllocatorBytes`).
-The slot count, the slot template, the static layers, gravity and every other field stay the step world's.
+exactly two fields changed: `ringDepthTicks` (0) and `tempAllocatorBytes` (`kShadowTempAllocatorBytes`),
+and `accessCheck` set to `nullptr`. The slot count, the slot template, the static layers, gravity and every
+other field stay the step world's. ⛔ Do not drop the `accessCheck` line: the shadow world must never
+inherit a check installed on the step world.
 ⛔ Do not build its statics by any call but `joltTickWorldHost::buildStatics` with the step world's two
 descriptions, and do not add a static or a body to either world alone. ⛔ Do not share one adapter between
 the two worlds.
@@ -92,10 +94,12 @@ must already agree, or the visualizations query a world that is not the step wor
 different slot template or slot count changes the slot bodies, and every restore is refused, so the shadow
 never moves; a missing, extra or reordered static is invisible to the restore, so the arena the
 visualizations query differs from the one the step collides with; a shared adapter puts the game thread's
-queries and the step's writes on one object.
+queries and the step's writes on one object. An inherited step-world check would refuse the game thread,
+the shadow world's only user, at every entry outside the lock.
 
-**What breaks if it moves.** The configuration is copied, and its two fields changed, in the three lines
-above the tag; an edit there is typed off the tagged statement. Keeping the step's ring depth fails
+**What breaks if it moves.** The configuration is copied, and its three fields set, in the four lines
+above the tag; an edit there is typed off the tagged statement. Today only `FrameBounded` builds a shadow
+world, and its step world has no check, so a dropped `accessCheck` line fails no test. Keeping the step's ring depth fails
 `JoltTickWorldHost.Lines.MatchTheGoldens` and
 `JoltTickWorldHost.Build.WorkerClientBuildsAShadowWorldWithTheSameStatics` (the built line; measured
 2026-10-16). A different static set is caught at build by the body-count `OG_CHECK`, with diagnostics on;

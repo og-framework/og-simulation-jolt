@@ -56,9 +56,10 @@ cmake --build build --config Release
 ```
 
 This builds two static libraries: `og_jolt_physics` (Jolt) and `og_simulation_jolt` (this library, which
-links `og_simulation` and `og_jolt_physics`). `-DOGJOLT_ENABLE_ASSERTS=ON` defines `JPH_ENABLE_ASSERTS`.
+links `og_simulation`, `og_tickdriver` and `og_jolt_physics`), and og-tickdriver's `og_tickdriver` from the
+checkout's `og-tickdriver/` folder. `-DOGJOLT_ENABLE_ASSERTS=ON` defines `JPH_ENABLE_ASSERTS`.
 
-**CMake, from a parent build** that already defines the `og_simulation` target (for example
+**CMake, from a parent build** that already defines the `og_simulation` and `og_tickdriver` targets (for example
 [og-tests-cmake-runner](https://github.com/og-framework/og-tests-cmake-runner)):
 
 ```cmake

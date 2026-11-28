@@ -25,7 +25,8 @@ Members outside the concept:
   `PhysicsBodyPoseWriter` capability, which is checked by a second `static_assert` beside the first: a
   signature slip then fails the build instead of making the restore push fall back to the matrix path.
 - `isBodyResolvable` — "this slot body is bound to a simulatable" (§5). Not in the concept; the UE host
-  calls it on the body adapter, as it does on the Chaos body adapter today.
+  calls it on the body adapter, as it did on the former Chaos body adapter (removed by og-session-runtime
+  task 4).
 - `getBodyMass` — kg, what Jolt integrates (1 / inverse mass). Used by the force seam and by tests.
 - `bodyIdOf` / `joltBodyIdOf` — the id mapping (§6).
 - `world`, `bindTable` — for the factory and the reader adapter.
@@ -45,8 +46,8 @@ og-simulation's axes. Jolt runs in the same units, so nothing is scaled at this 
 | angular velocity | rad/s | rad/s |
 | rotation | unit quaternion, glm (w, x, y, z) | unit quaternion, Jolt (x, y, z, w) |
 
-The Chaos body adapter converts to Unreal's centimetres and axes at its own edge (UE-sim's
-ChaosPhysicsBodyAdapter.h); this adapter has no edge to convert.
+The former Chaos body adapter (UE-sim's ChaosPhysicsBodyAdapter.h, removed by og-session-runtime
+task 4) converted to Unreal's centimetres and axes at its own edge; this adapter has no edge to convert.
 
 The conversions in `joltSeam` are type-only: `toJolt` and `toGlm` copy the three components of a vector,
 and `rotationToJolt` / `rotationToSeam` reorder a quaternion between glm's (w, x, y, z) and Jolt's
@@ -64,7 +65,8 @@ by 10⁴. Both were reproduced as poison arms against the tests while this adapt
 
 ## §3 Force-seam semantics
 
-Kept from the Chaos adapter and from the comments of the old Jolt adapter:
+Kept from the former Chaos adapter (removed by og-session-runtime task 4) and from the comments of the
+old Jolt adapter:
 
 - **`addBodyAcceleration`** accumulates an acceleration for this step; the engine applies force =
   a × mass. The mass is read from the body (1 / inverse mass), never from the shape: the factory
@@ -93,7 +95,7 @@ Kept from the Chaos adapter and from the comments of the old Jolt adapter:
   with an offset centre of mass can have it changed by an ULP (§9).
 - **`captureBodyState`** reads the body after the step. Jolt has no separate start-of-step and solved
   pose (Chaos's X/R versus P/Q), so the body's position after an update is the solved pose, the
-  counterpart of what the Chaos adapter reads.
+  counterpart of what the former Chaos adapter read.
 - Torque on a rotation-locked body changes nothing (Jolt's inverse inertia is zero there).
 
 ## §4 Inertia: what Jolt integrates
@@ -104,8 +106,8 @@ torque a·I produces exactly the angular acceleration a (`JoltBodyAdapter.TheRad
 60 ticks of the left-to-left swing match the analytic ω to 1.6e-6 rad/s).
 
 A **rotation-locked** body (the character capsule) is the exception: Jolt removes its rotational
-degrees of freedom by zeroing its inverse inertia, so there is nothing to invert. Chaos locks rotation
-with a joint and keeps reporting the body's inertia, so the adapter reports the parity inertia the
+degrees of freedom by zeroing its inverse inertia, so there is nothing to invert. Chaos locked rotation
+with a joint and kept reporting the body's inertia, so the adapter reports the parity inertia the
 factory recorded at bind time (`JoltBodyBindTable::lockedRotationInertiaOf`). A body with only some
 rotation axes locked has a singular inverse inertia; no M1 body has one, and `joltBodyInertiaOf` fails
 an `OG_CHECK` on it.
@@ -145,7 +147,7 @@ A `BodyId` holds the Jolt body id's index-and-sequence number. Slot bodies are c
 ids from 1 and sequence 0 (`JoltWorld-rationale.md`, the fixed body set), so `BodyId::value` = 1 +
 slot × bodiesPerSlot + template index, and the table index is `value - 1`. The adapter's members fail an
 `OG_CHECK` on a non-slot body and return the default value (identity transform, zero state) with checks
-compiled out, like the Chaos adapter's unresolved-body path.
+compiled out, like the former Chaos adapter's unresolved-body path.
 
 ## §7 Body user data
 
@@ -201,3 +203,29 @@ changed bits. It counted 793 in centimetres and 984 in metres, but the 984 came 
 clamp, not from the centre-of-mass step: its 1,500-unit velocity range meant 15 m/s in centimetres and
 1,500 m/s after flip U, above the 500 m/s limit, and a replay of its seeded draws finds exactly 984 of
 the 1,000 states over that limit.
+
+## §10 Entry check
+
+Every public member that reaches the world starts with
+`OG_CHECK(m_world.callerMayAccess(), "JoltPhysicsBodyAdapter::<member>: …")`, and each of the four free
+functions with `OG_CHECK(world.callerMayAccess(), "<function>: …")`. The predicate is the world's
+(`JoltWorld-rationale.md` §15): with none installed, the default, every caller passes.
+
+- **Checked:** `getBodyTransform`, `setBodyTransform`, `setBodyPose`, `addBodyTorque`,
+  `setBodyAngularVelocity`, `setBodyLinearVelocity`, `addBodyAcceleration`, `addBodyVelocityChange`,
+  `getBodyInertiaTensor`, `captureBodyState` and `getBodyMass`; and `joltBodyTransformOf`,
+  `joltBodyStateOf`, `joltBodyMassOf` and `joltBodyInertiaOf`. The check comes before the slot-body check,
+  so a call from the wrong thread fails even for an id that is not a slot body.
+- **Exempt:**
+  - `bodyIdOf` and `joltBodyIdOf` are static id conversions and touch no world.
+  - `bindTable()` and `isBodyResolvable` reach only the bind table, which is not world state. In M1 its
+    bindings are game-thread data (§5), and the UE host's registration polls `isBodyResolvable` on the
+    game thread (guard G-01).
+  - `world()` returns the reference; the world's own accessors check.
+  - The constructor reads only the world's build-time layout (`simulatableSlots`, `bodiesPerSlot`).
+  - `JoltBodyBindTable` has no check (§5).
+- **Two layers.** The members reach Jolt through the world's checked `bodies()` and `physics()`, so a
+  member that lost its own check is still caught, by the world's message instead. With the check removed
+  from `setBodyTransform`, the hidden `[.][JoltWorldAccessCheckFires]` case failed on `JoltWorld::bodies`;
+  with the check in the non-const `bodies()` removed as well, it passed.
+- **Cost:** as the world's (`JoltWorld-rationale.md` §15).

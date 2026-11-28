@@ -24,6 +24,7 @@
 
 #include "glm/vec3.hpp"
 #include "OGSimulation/BodySlotOccupancy.h"
+#include "OGSimulation/OGAssert.h"
 #include "OGSimulation/PhysicsWorldAdapter.h"
 #include "OGSimulation/QueryGeometry.h"
 #include "OGSimulation/SimulationFrame.h"
@@ -31,6 +32,7 @@
 using JoltWorldLoggerFn = std::function<void(const char*)>;
 using JoltWorldClockFn = double (*)();
 using JoltWorldAfterStepFn = void (*)(void* context);
+using JoltWorldAccessCheckFn = bool (*)();
 
 inline constexpr float kChaosRestitutionThreshold = 10.f;
 inline constexpr float kChaosParityStepSeconds = 1.f / 60.f;
@@ -57,12 +59,15 @@ struct JoltWorldConfig
 	uint32_t maxBodyPairs = 4096;
 	uint32_t maxContactConstraints = 2048;
 	JoltWorldClockFn clock = nullptr;
+	JoltWorldAccessCheckFn accessCheck = nullptr;
 };
 
 static_assert(std::bit_cast<std::uint32_t>(JoltWorldConfig{}.gravity[(simFrame::kUpIndex + 1) % 3]) == 0u
 		&& std::bit_cast<std::uint32_t>(JoltWorldConfig{}.gravity[(simFrame::kUpIndex + 2) % 3]) == 0u
 		&& simFrame::height(JoltWorldConfig{}.gravity) == -9.8f,
 	"JoltWorld: the default gravity is today's { 0.f, 0.f, -980.f } along the frame's up, with +0 (never -0) in the other two components");
+static_assert(JoltWorldConfig{}.accessCheck == nullptr,
+	"JoltWorld: a default world checks no caller (callerMayAccess() is true on every thread); only a host that steps the world on a dedicated thread installs a check. Was the EQUIV default of og-input-latency task P11-6");
 
 enum class JoltContactOverflow : uint8_t
 {
@@ -83,6 +88,8 @@ public:
 	JoltWorld(const JoltWorld&) = delete;
 	JoltWorld& operator=(const JoltWorld&) = delete;
 
+	[[nodiscard]] bool callerMayAccess() const { return m_accessCheck == nullptr || m_accessCheck(); }
+
 	OGSIMULATIONJOLT_API void step(float dt);
 	OGSIMULATIONJOLT_API void setAfterStepObserver(JoltWorldAfterStepFn observer, void* context);
 	OGSIMULATIONJOLT_API void saveTick(SimTick tick);
@@ -96,16 +103,52 @@ public:
 	OGSIMULATIONJOLT_API void applyBodySlotOccupancy(const BodySlotOccupancy& occupancy);
 	[[nodiscard]] OGSIMULATIONJOLT_API std::optional<uint64_t> stateHash(SimTick tick) const;
 
-	[[nodiscard]] JPH::PhysicsSystem& physics() { return m_physics; }
-	[[nodiscard]] const JPH::PhysicsSystem& physics() const { return m_physics; }
-	[[nodiscard]] JPH::BodyInterface& bodies() { return m_physics.GetBodyInterfaceNoLock(); }
-	[[nodiscard]] const JPH::BodyInterface& bodies() const { return m_physics.GetBodyInterfaceNoLock(); }
-	[[nodiscard]] const JPH::NarrowPhaseQuery& query() const { return m_physics.GetNarrowPhaseQueryNoLock(); }
+	[[nodiscard]] JPH::PhysicsSystem& physics()
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::physics: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physics;
+	}
+	[[nodiscard]] const JPH::PhysicsSystem& physics() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::physics: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physics;
+	}
+	[[nodiscard]] JPH::BodyInterface& bodies()
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::bodies: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physics.GetBodyInterfaceNoLock();
+	}
+	[[nodiscard]] const JPH::BodyInterface& bodies() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::bodies: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physics.GetBodyInterfaceNoLock();
+	}
+	[[nodiscard]] const JPH::NarrowPhaseQuery& query() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::query: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physics.GetNarrowPhaseQueryNoLock();
+	}
 	[[nodiscard]] const JoltLayerTable& layers() const { return m_layers; }
-	[[nodiscard]] ShapeEnableTable& shapeEnables() { return m_shapeEnables; }
-	[[nodiscard]] const ShapeEnableTable& shapeEnables() const { return m_shapeEnables; }
-	[[nodiscard]] const JoltStateRing& ring() const { return m_ring; }
-	[[nodiscard]] const BodySlotOccupancy& appliedBodySlotOccupancy() const { return m_appliedBodySlotOccupancy; }
+	[[nodiscard]] ShapeEnableTable& shapeEnables()
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::shapeEnables: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_shapeEnables;
+	}
+	[[nodiscard]] const ShapeEnableTable& shapeEnables() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::shapeEnables: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_shapeEnables;
+	}
+	[[nodiscard]] const JoltStateRing& ring() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::ring: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_ring;
+	}
+	[[nodiscard]] const BodySlotOccupancy& appliedBodySlotOccupancy() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::appliedBodySlotOccupancy: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_appliedBodySlotOccupancy;
+	}
 
 	[[nodiscard]] uint32_t simulatableSlots() const { return m_simulatableSlots; }
 	[[nodiscard]] uint32_t bodiesPerSlot() const { return static_cast<uint32_t>(m_template.size()); }
@@ -115,8 +158,16 @@ public:
 	[[nodiscard]] OGSIMULATIONJOLT_API JPH::BodyID createStaticBody(const JPH::BodyCreationSettings& settings);
 
 	[[nodiscard]] OGSIMULATIONJOLT_API uint64_t liveStateHash() const;
-	[[nodiscard]] uint64_t physicsStepCount() const { return m_physicsStepCount; }
-	[[nodiscard]] uint64_t contactOverflowCount(JoltContactOverflow kind) const { return m_overflow[static_cast<size_t>(kind)].occurrences; }
+	[[nodiscard]] uint64_t physicsStepCount() const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::physicsStepCount: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_physicsStepCount;
+	}
+	[[nodiscard]] uint64_t contactOverflowCount(JoltContactOverflow kind) const
+	{
+		OG_CHECK(callerMayAccess(), "JoltWorld::contactOverflowCount: called off the world's owning thread, outside a step and the world lock. Was og-simulationscheduler-withjolt task 39's RW2 m4");
+		return m_overflow[static_cast<size_t>(kind)].occurrences;
+	}
 
 private:
 	struct TemplateBody
@@ -149,6 +200,7 @@ private:
 
 	JoltWorldLoggerFn m_logger;
 	JoltWorldClockFn m_clock = nullptr;
+	JoltWorldAccessCheckFn m_accessCheck = nullptr;
 	uint32_t m_simulatableSlots = 0;
 	std::vector<TemplateBody> m_template;
 	JoltLayerTable m_layers;

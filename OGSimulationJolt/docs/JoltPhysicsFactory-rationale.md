@@ -12,8 +12,8 @@ world's body set is fixed at construction (`JoltWorld-rationale.md`). Prohibitio
 
 ## §1 Shape of the factory
 
-One factory per registration, like the Chaos factory (constructed per character with that character's
-owner and root). It is constructed with:
+One factory per registration, like the former Chaos factory (constructed per character with that
+character's owner and root; removed by og-session-runtime task 4). It is constructed with:
 
 - the body adapter (for the world and the bind table),
 - the slot template the world was built from (`JoltWorldConfig::slotTemplate`; copied, six small
@@ -24,8 +24,8 @@ owner and root). It is constructed with:
 `createPhysicalObject(descriptor, name)` binds the **next** template body of the slot. The host calls it
 once per declaration in the physics composite's declaration order, which is the template order; the
 factory checks that each descriptor equals its template body's (`sameDescriptor`, an `OG_CHECK`) so a
-reordering fails loud instead of binding a weapon to a guard body. `name` is unused (the Chaos factory
-names the UE component with it).
+reordering fails loud instead of binding a weapon to a guard body. `name` is unused (the former Chaos
+factory named the UE component with it).
 
 `parentBodyId` is the slot body of the template's single `isRoot` declaration (the character capsule),
 which the host stores as every declaration's parent. The constructor checks there is exactly one.
@@ -99,11 +99,11 @@ travel exceeds the capsule radius (above about 2520 cm/s), which the game reache
 direction. It does sink up to 31 cm into a wall for a tick at 2000 cm/s before the contact pushes the
 capsule out.
 
-Today's Chaos build runs the same regime: the capsule's body instance has neither CCD nor
-movement-aware collision detection (both off by default), and Chaos looks ahead of a moving body by
-its cull distance (3 cm) plus at most 3 cm of velocity expansion (the default
-p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion), so it also lets a fast capsule penetrate and,
-past about the radius per tick, pass. This is read from the Chaos source, not measured. M1 is an
+The former Chaos build (removed by og-session-runtime tasks 3–6) ran the same regime: the capsule's
+body instance had neither CCD nor movement-aware collision detection (both off by default), and Chaos
+looks ahead of a moving body by its cull distance (3 cm) plus at most 3 cm of velocity expansion (the
+default p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion), so it also let a fast capsule penetrate
+and, past about the radius per tick, pass. This is read from the Chaos source, not measured. M1 is an
 equivalence milestone, so the factory keeps `Discrete`.
 
 `LinearCast` is ready if gate 22 shows a capsule passing through geometry: it never tunnelled, it
@@ -115,10 +115,13 @@ costs nothing measurable with 8 characters (step median 0.011 ms with or without
 Each declaration's shapes get a `ShapeId`. Without a registrar the id is `defaultShapeIdOf`: the body's
 `BodyId` value (one shape per M1 slot body, ids 1 to 48, inside the world's 256-entry shape-enable
 table). With a registrar (the spatial query adapter's engine-free registerShape, a later addition) the
-factory calls it as the Chaos factory calls its query adapter: root body for every created body,
-std::nullopt for the root itself.
+factory calls it as the former Chaos factory called its query adapter: root body for every created
+body, std::nullopt for the root itself.
 
 ## §6 Parity with the Chaos factory
+
+The left column is the former Chaos factory's behaviour, kept as the parity record; the factory was
+removed with the Chaos configuration by og-session-runtime task 4.
 
 | Chaos factory behaviour (UE-sim ChaosPhysicsFactory.cpp, applyDescriptor / createPhysicalObject) | Jolt factory |
 |---|---|

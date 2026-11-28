@@ -101,7 +101,9 @@ The table holds `JoltContactStepCounts::kMaxIds` simulatables, `kMaxSimulatableS
 at most one simulatable per slot, and a `JoltWorld` has at most that many slots. A simulatable beyond
 the table is counted in `unrecordedIds` and its per-id counts are lost; the pair class counts stay
 complete. `drain` returns the ids sorted, so the order does not depend on which job saw them first;
-`findId` looks one up.
+`findId` looks one up. The sort key, the simulatable id, cannot tie: an id ends up in exactly one slot
+(§5), so `drain` emits each id once, and the sort needs no tie-break for MSVC's STL and libc++ to agree
+(task 23).
 
 ## §5 Threads
 

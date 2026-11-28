@@ -23,8 +23,6 @@
 #include "OGSimulation/SpatialQueryAdapter.h"
 #include "OGSimulation/SpatialQueryResult.h"
 
-using JoltWorldAccessCheckFn = bool (*)();
-
 class JoltWorldAccessScope
 {
 public:
@@ -83,13 +81,12 @@ namespace joltQueryRule
 	static_assert(isTraceChannelQuery(0u, 0b111111u) && !isTraceChannelQuery(0b000011u, 0b111111u),
 		"joltQueryRule: an empty search mask is a trace-channel query; a mapped one is an object query");
 	static_assert(isTraceChannelQuery(0b1000000u, 0b111111u) && isSilentlyEmptyObjectQuery(0b1000000u, 0b111111u),
-		"joltQueryRule: a non-empty search whose every bit is unmapped falls back to the trace channel, as the Chaos object-query "
-		"params are then empty and UE builds a trace query (CreateQueryFilterData) - it is NOT a query that matches nothing");
+		"joltQueryRule: a non-empty search whose every bit is unmapped falls back to the trace channel, as its effective object mask is then empty - it is NOT a query that matches nothing");
 	static_assert(effectiveObjectMask(0b1000011u, 0b111111u) == 0b11u && unmappedSearchMask(0b1000011u, 0b111111u) == 0b1000000u,
-		"joltQueryRule: unmapped search bits are dropped from an object query, as Chaos drops them from FCollisionObjectQueryParams");
+		"joltQueryRule: unmapped search bits are dropped from an object query, which searches the mapped bits only");
 	static_assert(respondsToTraceCategory(JoltLayerKey{ JoltBroadPhaseClass::Moving, 0b1u, 0u }, 2u)
 			&& !blocksTraceCategory(JoltLayerKey{ JoltBroadPhaseClass::Moving, 0b1u, 0u }, 2u),
-		"joltQueryRule: a slot body overlaps every trace channel it does not block (the Chaos factory's ECR_Overlap default)");
+		"joltQueryRule: a slot body overlaps every trace channel it does not block (a moving layer answers every trace category)");
 	static_assert(respondsToTraceCategory(JoltLayerKey{ JoltBroadPhaseClass::Static, 0b10000u, 0b100u }, 2u)
 			&& !respondsToTraceCategory(JoltLayerKey{ JoltBroadPhaseClass::Static, 0b10000u, 0b011u }, 2u),
 		"joltQueryRule: a static answers a trace channel only where it blocks it (the importer records Block responses only)");

@@ -2,8 +2,9 @@
 # `JoltBodyDefaults.h` — rationale
 
 The named constants the Jolt factory gives every slot body, each equal to the value Unreal's Chaos
-gives the same body today, and the Chaos mass formula. The point is that no slot body ever runs on a
-Jolt default by accident: the two engines' defaults differ in every row below.
+gave the same body in the former Chaos configuration (removed by og-session-runtime tasks 3–6), and the
+Chaos mass formula. The point is that no slot body ever runs on a Jolt default by accident: the two
+engines' defaults differ in every row below.
 
 **If this file and `JoltBodyDefaults.h` disagree, the header is authoritative and this file is stale.**
 
@@ -25,7 +26,7 @@ defaults those fields start from.
 
 | Constant | Value | Chaos source |
 |---|---|---|
-| `kCreatedBodyMaterial` | friction 0.7, restitution 0.3 | Every body the Chaos factory **creates** (the weapon, guard and projectile spheres) has no material override, so UE uses the engine default physical material, /Engine/EngineMaterials/DefaultPhysicalMaterial. That asset overrides no property (its name table holds no property names), so it carries the UPhysicalMaterial constructor values: Friction 0.7, Restitution 0.3 (PhysicsCore/Private/PhysicalMaterial.cpp:44-46). Measured at run time: `getall PhysicalMaterial Friction` / `Restitution` print 0.7 / 0.3 |
+| `kCreatedBodyMaterial` | friction 0.7, restitution 0.3 | Every body the former Chaos factory **created** (the weapon, guard and projectile spheres; removed by og-session-runtime task 4) had no material override, so UE used the engine default physical material, /Engine/EngineMaterials/DefaultPhysicalMaterial. That asset overrides no property (its name table holds no property names), so it carries the UPhysicalMaterial constructor values: Friction 0.7, Restitution 0.3 (PhysicsCore/Private/PhysicalMaterial.cpp:44-46). Measured at run time: `getall PhysicalMaterial Friction` / `Restitution` print 0.7 / 0.3 |
 | `kAdoptedRootMaterial` | friction 0, restitution 0 | The **adopted root** is the character's own capsule. The game gives it a material override with Friction 0 and Restitution 0 (the CapsulePhysicalMaterial subobject in the AOGBrawlerUECharacter constructor, applied by SetPhysMaterialOverride in PostInitializeComponents; cited by content because the file's line numbers move). Measured: BrawlerCapsulePhysMat Friction 0, Restitution 0 |
 | `kLinearDamping` | 0.01 | FBodyInstance constructor, LinearDamping(0.01) (Engine/Private/PhysicsEngine/BodyInstance.cpp:399). Measured: get_linear_damping() = 0.01 on all seven simulated brawler bodies |
 | `kAngularDamping` | 0.0 | FBodyInstance constructor, AngularDamping(0.0) (BodyInstance.cpp:400). Measured: 0.0 |

@@ -13,7 +13,7 @@ explains them is here. Prohibitions are in `JoltTickWorldHost-guards.md`.
 file; do not soften the sources to match it.
 
 ⚠ **This file ships with og-simulation-jolt under MPL-2.0.** Everything below is true to a reader with no
-game engine and no other repository. The code it replaced lived in a game's engine module; §14 names it.
+game engine and no other repository. The code it replaced lived in a game's engine module; §15 names it.
 
 ---
 
@@ -108,19 +108,27 @@ into the `.cpp`, that check would compare the library with itself.
   to the three optionals for `bind`, `release`, the visualization doors and the bind-table comparison.
 - **The thread context** is configured once, by `build`, on the calling thread. Destroy the host on that
   thread where practical; destroyed elsewhere, the owner count stays raised on the configuring thread,
-  which is safe (`TickDriverThreadContext-rationale.md` §3).
+  which is safe (`TickDriverThreadContext-rationale.md` §3). A `FreeRunning` host is built on its runner
+  thread and destroyed on the frame thread after the runner is joined, or on the runner itself, never on a
+  thread started after the runner ended (§14).
 - The host is neither copyable nor movable (the deleted copy operations suppress the moves), and must not
   be: the step world's after-step observer holds `this`.
 
 ## §5 `build`
 
 `build(config, queryableStatics, physicsOnlyStatics, bodyAdapter, readerAdapter, queryAdapter)`, on the
-thread that will own the world (the game thread in an engine), in this order:
+thread that will own the world (the game thread in an engine; the runner thread for a `FreeRunning`
+authority, §14), in this order:
 
-1. **The stepping mode and the thread context, first.** The authority always steps inline; a client steps
-   inline only with `config.runInline`. `configure` records the role bit (authority 1, client 2) and the
-   mode, marks the calling thread as the role's owner and fixes the step and shadow predicates. Then one
-   `[SimHost.Mode] role=… stepping=<inline|worker> viz=<stepWorld|shadowWorld>` Warning. This must precede
+1. **The stepping mode and the thread context, first.** An `OG_CHECK` refuses `config.freeRunning` on a
+   client or together with `config.runInline`. The mode is og-simulation's `StepThreading`: `FreeRunning`
+   when `config.freeRunning`; otherwise `Inline` for the authority and for a client with
+   `config.runInline`, and `FrameBounded` (a worker client) for any other client. `configure(role, mode)`
+   records the role bit (authority 1, client 2) and the mode, marks the calling thread as the role's owner
+   and fixes the step and shadow predicates. Then one
+   `[SimHost.Mode] role=… stepping=<inline|worker|runner> viz=<stepWorld|shadowWorld|none>` Warning:
+   `inline` and `stepWorld` for `Inline`, `worker` and `shadowWorld` for `FrameBounded`, `runner` and `none`
+   for `FreeRunning`. The viz word follows the same condition as the shadow world's build (step 6). This must precede
    every adapter emplacement: the query adapter is built with the predicate, and an inline host's game
    thread may register a volume between steps without the lock only because it is the owner thread. An
    `OG_CHECK` right before the first emplacement holds the order (it names what it replaced); the
@@ -134,14 +142,15 @@ thread that will own the world (the game thread in an engine), in this order:
 4. **The step world's configuration** (`stepWorldConfigOf`): `kMaxSimulatableSlots` slots, the slot
    template, the static layer keys of both static parts (queryable first), the gravity, and a ring of
    `config.clientRingDepthTicks` on a client and none on the authority, which never resimulates. The
-   default ring depth is og-simulation's `rollbackWindowHardCap` plus 2.
+   default ring depth is og-simulation's `rollbackWindowHardCap` plus 2. Its `accessCheck` is the
+   context's `entryCheck()`: the step predicate in `FreeRunning`, `nullptr` in the other two modes (§14).
 5. **Under the world lock:** the step world; if `config.contactCounts`, the contact counter as its
    listener, the after-step observer and the contact buffer's reservation (§9); the statics
    (`buildStatics`, below); the body adapter, the reader over its bind table, the query adapter with
    `config.mappedCategories` and the step predicate; the physics-only statics excluded from queries; one
    `[SimHost.World]` Warning with the slot count, bodies per slot, ring depth and the two parts' shape
    and body counts. Nothing contends for the lock at build; a worker client's query predicate demands it.
-6. **The shadow world**, on a worker client only (§11).
+6. **The shadow world**, for `FrameBounded` only, that is on a worker client (§11).
 7. **One `[SimHost.Contacts] installed=…` Warning**, and an `OG_CHECK` that the step world's listener is
    set exactly when the counter was installed and that the shadow world has none.
 
@@ -176,6 +185,8 @@ the `[SimHost.Slot]` lines); the host adds the Jolt parts.
   it replaced did (§14). A caller whose step thread can still read a released slot's bind-table entries
   needs the release under the lock.
 - `slotOf(key)` and `slotsInUse()` expose the table's two queries.
+- **In `FreeRunning`**, `acquire` and `release` first `OG_CHECK` that the caller is the owner thread, the
+  runner (§14).
 
 ## §7 `bind`
 
@@ -197,7 +208,8 @@ slot `acquire` returned.
 4. The bind mirrored into the shadow world (§11).
 
 `id` must be the same on every peer (the game's peer-stable key), because the query adapter orders hits by
-it. The lock is not recursive: do not call `bind` with the world lock held.
+it. The lock is not recursive: do not call `bind` with the world lock held. In `FreeRunning`, `bind` first
+`OG_CHECK`s that the caller is the owner thread, the runner (§14).
 
 ## §8 The visualization doors
 
@@ -206,7 +218,8 @@ it. The lock is not recursive: do not call `bind` with the world lock held.
 `registerVizVolume(descriptor, key, name, isAuthority, replicatedSlot, publish)` acquires the key's slot as
 `acquire` does and registers the volume, with the slot's root body as the ignored body, in the same world
 the two doors hand out; while the acquire waits it returns nothing and the caller retries. With diagnostics
-on, each door counts which world it handed out, for the shadow window (§11).
+on, each door counts which world it handed out, for the shadow window (§11). A `FreeRunning` authority has
+no game-thread viz world, so each of the three doors is refused there by an `OG_CHECK` (§14).
 
 ## §9 The step doors
 
@@ -265,11 +278,14 @@ allocates nothing while both fit their reservations.
 
 On a worker client the step runs on another thread, so the game thread may not query the step world. The
 visualizations query a second world instead, which only the game thread touches and which is restored once
-per frame from the newest state the step saved. Inline hosts build none.
+per frame from the newest state the step saved. `Inline` and `FreeRunning` hosts build none.
 
 - **Construction** (end of `build`): the step world's configuration with two fields changed, a ring depth of
   0 (it never saves a tick) and a 64 KiB temp allocator (`kShadowTempAllocatorBytes`; it never steps, where
-  the step world's default is 16 MiB); the statics by `buildStatics` from the same two descriptions; its own
+  the step world's default is 16 MiB); its `accessCheck` set to `nullptr` explicitly, so a check installed on
+  the step world is never inherited (the shadow is the game thread's world, and its query adapter's shadow
+  predicate is its check; in `FrameBounded`, the only mode that builds it, the step world has no check
+  either, so the value is the step world's); the statics by `buildStatics` from the same two descriptions; its own
   body adapter, reader and query adapter, the physics-only statics excluded as in the step world, and the
   shadow predicate (the owner thread only). An `OG_CHECK` first requires the step world's ring slots to have
   `JoltWorldConfig`'s default size, the size the hand-over slots are pre-reserved to.
@@ -345,6 +361,18 @@ tick-driver kit's fake engine and a two-declaration test simulatable:
 - `JoltTickWorldHost.Lines.MatchTheGoldens`: every line above except `HASH` (a consistent pair of worlds
   restores to an equal hash, and the hand-over has no test seam), with both diagnostics settings.
 - `JoltTickWorldHost.Statics.SplitByThePhysicsOnlyFlags`.
+- `JoltTickWorldHost.Build.AFreeRunningAuthorityBuildsOnItsRunnerWithoutAShadowWorld`: a `FreeRunning`
+  authority built on a `std::thread`, kept alive while the test thread probes. On that thread: the owner
+  query, `FreeRunning`, no shadow world, an entry check and `callerMayAccess()` true. On the test thread,
+  which owns no authority context: `callerMayAccess()` false. The three build lines, the Mode line reading
+  `stepping=runner viz=none`. Then the host is destroyed on the test thread while the runner lives: the test
+  thread's authority owner count is unchanged, and the runner's stays raised by one (§14).
+- `JoltTickWorldHost.Bind.AFreeRunningHostBindsOnTheRunnerUnderTheEntryCheck`: two slots acquired and bound
+  on a runner thread under the installed check give the same result as an inline authority's binds of the
+  same keys, names and ids: every slot body's id, binding and locked-rotation inertia, the bound-body count,
+  the declaration bindings, and the `[SimHost.Slot]` and `[SimHost.Bind]` lines. The test thread reads the
+  check before the inline authority exists (false) and after it is built on the test thread (true: §14's
+  role scope).
 
 Poisons seen failing on 2026-10-16 (each applied, built, run and reverted byte-exactly): the thread context
 configured after the adapter emplacement (an `OG_CHECK` aborts `build`; with checks compiled out the
@@ -355,7 +383,49 @@ thread instead of pushed; the bind outside the lock on a worker client (the quer
 contact line's buffer released after each `runTick` (the allocation count); the Verbose gate or the replay
 flag lost; a hand-over on a Stall step.
 
-## §14 Provenance
+Poisons seen failing on 2026-11-13, for the `FreeRunning` build (each replacement counted once, built, run
+by name, restored and recompiled): the shadow world built on `!stepsInline()` instead of `FrameBounded` only
+(the Build case: a shadow world exists, and the lines read `viz=shadowWorld` with a `[SimHost.Shadow] built`
+line); the step world's `accessCheck` left unset (the Build case's test-thread check and the Bind case's
+first test-thread check both read true).
+
+## §14 `FreeRunning`: the build on the runner
+
+`config.freeRunning` selects og-simulation's `StepThreading::FreeRunning`: an authority whose steps run on a
+dedicated runner thread, which pumps, steps and idles in og-simulation's `SimulationTickDriver` authority
+loop. Only the authority runs it, and never together with `runInline`; `build` refuses both by an
+`OG_CHECK` before it configures anything.
+
+- **The build runs on the runner.** The runner calls `build` (og-simulation's
+  `SimulationTickBackend::runAuthorityLoop` does it first), so `configure` marks the runner as the role's
+  owner. Every later call that reaches the world, from the statics and the adapter emplacement in `build`
+  to every bind and release, runs on that thread, with the world lock where it is taken today.
+- **No shadow world.** The game thread queries nothing in this mode: it reaches the authority through
+  queues and snapshots only. `build` builds the shadow world for `FrameBounded` only, the Mode line reads
+  `viz=none`, and `editVizQuery`, `getVizReader` and `registerVizVolume` are refused by an `OG_CHECK`.
+  `afterTick_Step`, `restore_GameThread` and `overwriteShadowPoses_GameThread` do nothing, as on an inline
+  host.
+- **Owner-only slot calls.** `acquire`, `release` and `bind` `OG_CHECK` that the caller is the owner thread.
+  The game thread hands a join or a leave to the runner through the game's own queue.
+- **The installed entry check.** The step world's `accessCheck` is the context's `entryCheck()`, the
+  authority's inline predicate owned by the runner. The runner passes it outside a step and the lock; any
+  other thread passes only inside a step of the role or under the role's world lock. Every state-touching
+  entry of `JoltWorld` and of the two body adapters `OG_CHECK`s it (`JoltWorld-rationale.md` §15). The
+  other two modes get `nullptr`, so they keep exactly the checks they had.
+- **The check is per role and thread, not per world.** The predicate asks whether the calling thread owns
+  an authority context, not this one. A thread that owns another authority host (an `Inline` one built on
+  it) passes this world's check too. A game runs one authority per process, so the frame thread owns none
+  in this mode; the Bind case reads both sides.
+- **Which thread destroys.** The runner is dedicated: one thread per loop, which exits when the loop
+  returns (`TickDriverThreadContext-rationale.md` §8). Destroy the host on the frame thread after joining
+  the runner, or on the runner, never on a thread started after the runner ended: such a thread can reuse
+  the runner's thread id, pass the context's destructor condition and wrap its own owner count.
+  Destroyed on the frame thread, the context leaves the frame thread's count untouched and the runner's
+  raised, which ends with the runner thread. The Build case destroys it so and reads both counts.
+- **Nothing else changes.** `Inline` and `FrameBounded` take the same branches, print the same lines (the
+  goldens are unmodified) and install no entry check.
+
+## §15 Provenance
 
 Moved from the brawler game's engine module, where the Jolt backend host held the same code in its
 JoltBackendUImpl files (historical name; TickDriverBackendUImpl since og-tickdriver task 15b) (og-tickdriver task 6): the runtime lease and the worlds struct with its two
@@ -365,4 +435,5 @@ helpers, the visualization doors, the shadow hand-over and restore with its wind
 and the contact recorder and its lines. Its static import split moved here as `splitStatics`. Every
 `checkf` became an `OG_CHECK` without printf arguments, and each message names the check it replaced. The
 slot table had already moved to og-simulation's `TickSlotTable`. Prohibitions that guarded the moved code
-there are now this file's G-01 to G-05 (the guards doc names each predecessor).
+there are now this file's G-01 to G-05 (the guards doc names each predecessor). The `FreeRunning` build (§14)
+was added by og-input-latency task P11-7.

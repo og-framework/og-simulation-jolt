@@ -51,6 +51,13 @@ builds, empty in monolithic ones).
   `-msse4.1 -msse4.2 -mpopcnt`, because the SSE4.2 path calls `_mm_popcnt_u32`
   (`Jolt/Math/Math.h`). MSVC needs no flag for these intrinsics.
 - `OGJOLT_ENABLE_ASSERTS` (default `OFF`) defines `JPH_ENABLE_ASSERTS` publicly.
+- `JPH_CROSS_PLATFORM_DETERMINISTIC` is a `PUBLIC` definition of `og_jolt_physics` on every platform
+  (og-input-latency task 21), beside `JPH_OBJECT_LAYER_BITS=16` (`JoltDefineChecks-rationale.md` §2).
+- `og_jolt_physics` gets the floating-point options og-simulation gives `og_simulation` (og-input-latency task 20):
+  `/fp:precise` with MSVC, `/fp:precise /clang:-ffp-contract=off` with clang-cl, `-ffp-contract=off` otherwise, all
+  `PUBLIC`. `og_jolt_physics` (the vendored Jolt sources) does not link `og_simulation`, so it would not inherit them and
+  sets them itself. `og_simulation_jolt` links both publicly, so it gets the same options from each. Why the mode is one
+  for all simulation code: og-simulation's `FloatingPointMode-rationale.md`.
 
 ## §3 The Unreal module shell (`OGSimulationJolt.Build.cs`, og-simulation-ue)
 
@@ -61,8 +68,11 @@ compiles the library, the stub and all vendored Jolt sources; nothing is listed 
 - **Dependencies:** `Core`, `glm` and `OGSimulation`, all public. Nothing else.
 - **Include paths, public:** the repository root (for `#include "OGSimulationJolt/…"`) and
   `ThirdParty/JoltPhysics` (for `#include <Jolt/…>`).
-- **Defines, all public:** `JPH_OBJECT_LAYER_BITS=16`; `JPH_USE_SSE4_1=1` and `JPH_USE_SSE4_2=1` on
-  Win64 and Linux only. ARM64 targets (Android) get NEON from Jolt's own detection.
+- **Defines, all public:** `JPH_OBJECT_LAYER_BITS=16` and `JPH_CROSS_PLATFORM_DETERMINISTIC` on every
+  platform (og-input-latency task 21; `JoltDefineChecks-rationale.md` §2); `JPH_USE_SSE4_1=1` and
+  `JPH_USE_SSE4_2=1` on Win64 and Linux only. ARM64 targets (Android) get NEON from Jolt's own detection.
+  Public definitions reach every module that depends on this one, which are the modules that can include
+  Jolt's headers (its include path is public here too).
 - **`bEnableExceptions = false`, `bUseRTTI = false`:** as in §2.
 - **`bUseUnity = false`:** carried over from the predecessor JoltPhysicsModule (historical: deleted after the parity gate), which compiled Jolt
   non-unity; a unity build of Jolt has not been tried.
@@ -70,8 +80,13 @@ compiles the library, the stub and all vendored Jolt sources; nothing is listed 
   "Expected X.h to be first header included" for each of the 138 vendored Jolt `.cpp` files (measured
   2026-10-07 with Unreal Engine 5.6.1). The vendored files are not edited to satisfy it.
 - **`PCHUsage = UseExplicitOrSharedPCHs`:** as for the `OGSimulation` module. `OG_CHECK`'s Unreal branch
-  (`OGSimulation/OGAssert.h`) uses `checkf`, which reaches `JoltRuntime.cpp` through the shared
-  precompiled header.
+  (`OGSimulation/OGAssert.h`) uses `checkf`, which reaches `JoltRuntime.cpp` through the precompiled header.
+- **`FPSemantics = FPSemanticsMode.Precise` and a private precompiled header** (og-input-latency task 20): the module
+  compiles `/fp:precise` on Win64, the vendored Jolt sources included, like every module that compiles simulation code.
+  A module whose FP semantics differ from its target's cannot share a precompiled header, so `PrivatePCHHeaderFile` names
+  the engine's CoreSharedPCH.h, the header the module had as its shared one; without it the module builds with no
+  precompiled header and `checkf` above is undeclared. Both lines, and the list of modules that carry them:
+  og-simulation's `FloatingPointMode-rationale.md` §4.
 
 ## §4 The DLL boundary in modular Unreal builds
 

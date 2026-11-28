@@ -10,7 +10,9 @@
 #include <cstdio>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include <Jolt/Core/Reference.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -55,53 +57,79 @@ namespace
 		uint64_t m_value = 14695981039346656037ull;
 	};
 
-	struct ContentHasher
+	class ContentWords
 	{
-		ContentHash& hash;
+	public:
+		void u32(uint32_t value) { m_words.push_back(value); }
+		void f32(float value) { u32(std::bit_cast<uint32_t>(value)); }
+		void vec3(const glm::vec3& value) { f32(value.x); f32(value.y); f32(value.z); }
+		[[nodiscard]] std::vector<uint32_t> take() { return std::move(m_words); }
 
-		void operator()(const StaticBox& box) const { hash.vec3(box.halfExtents); }
-		void operator()(const StaticSphere& sphere) const { hash.f32(sphere.radius); }
-		void operator()(const StaticCapsule& capsule) const { hash.f32(capsule.radius); hash.f32(capsule.totalHalfHeight); }
+	private:
+		std::vector<uint32_t> m_words;
+	};
+
+	template <typename Sink>
+	struct ContentVisitor
+	{
+		Sink& sink;
+
+		void operator()(const StaticBox& box) const { sink.vec3(box.halfExtents); }
+		void operator()(const StaticSphere& sphere) const { sink.f32(sphere.radius); }
+		void operator()(const StaticCapsule& capsule) const { sink.f32(capsule.radius); sink.f32(capsule.totalHalfHeight); }
 		void operator()(const StaticConvexHull& hull) const
 		{
-			hash.u32(static_cast<uint32_t>(hull.points.size()));
+			sink.u32(static_cast<uint32_t>(hull.points.size()));
 			for (const glm::vec3& point : hull.points)
 			{
-				hash.vec3(point);
+				sink.vec3(point);
 			}
 		}
 		void operator()(const StaticTriangleMesh& mesh) const
 		{
-			hash.u32(static_cast<uint32_t>(mesh.vertices.size()));
+			sink.u32(static_cast<uint32_t>(mesh.vertices.size()));
 			for (const glm::vec3& vertex : mesh.vertices)
 			{
-				hash.vec3(vertex);
+				sink.vec3(vertex);
 			}
-			hash.u32(static_cast<uint32_t>(mesh.indices.size()));
+			sink.u32(static_cast<uint32_t>(mesh.indices.size()));
 			for (const uint32_t index : mesh.indices)
 			{
-				hash.u32(index);
+				sink.u32(index);
 			}
 		}
 	};
 
-	uint64_t contentHashOf(const StaticShapeDescriptor& descriptor)
+	template <typename Sink>
+	void feedContent(Sink& sink, const StaticShapeDescriptor& descriptor)
 	{
-		ContentHash hash;
-		hash.u32(static_cast<uint32_t>(descriptor.shape.index()));
-		std::visit(ContentHasher{ hash }, descriptor.shape);
+		sink.u32(static_cast<uint32_t>(descriptor.shape.index()));
+		std::visit(ContentVisitor<Sink>{ sink }, descriptor.shape);
 		for (int column = 0; column < 4; ++column)
 		{
 			for (int row = 0; row < 4; ++row)
 			{
-				hash.f32(descriptor.localToWorld[column][row]);
+				sink.f32(descriptor.localToWorld[column][row]);
 			}
 		}
-		hash.u32(descriptor.categories.bits);
-		hash.u32(descriptor.blockingCategories.bits);
-		hash.f32(descriptor.friction);
-		hash.f32(descriptor.restitution);
+		sink.u32(descriptor.categories.bits);
+		sink.u32(descriptor.blockingCategories.bits);
+		sink.f32(descriptor.friction);
+		sink.f32(descriptor.restitution);
+	}
+
+	uint64_t contentHashOf(const StaticShapeDescriptor& descriptor)
+	{
+		ContentHash hash;
+		feedContent(hash, descriptor);
 		return hash.value();
+	}
+
+	std::vector<uint32_t> contentWordsOf(const StaticShapeDescriptor& descriptor)
+	{
+		ContentWords words;
+		feedContent(words, descriptor);
+		return words.take();
 	}
 
 	struct Placement
@@ -309,8 +337,13 @@ StaticWorldBuildReport JoltStaticWorldBuilder::build(const StaticWorldDescriptio
 	// ⛔G-01  docs/JoltStaticWorldBuilder-guards.md
 	std::sort(sorted.begin(), sorted.end(), [](const SortedElement& first, const SortedElement& second)
 	{
-		return std::make_tuple(first.layerKey, surfaceOrderOf(first.surface), first.descriptor->stableKey, first.contentHash)
-			< std::make_tuple(second.layerKey, surfaceOrderOf(second.surface), second.descriptor->stableKey, second.contentHash);
+		const auto firstKey = std::make_tuple(first.layerKey, surfaceOrderOf(first.surface), first.descriptor->stableKey, first.contentHash);
+		const auto secondKey = std::make_tuple(second.layerKey, surfaceOrderOf(second.surface), second.descriptor->stableKey, second.contentHash);
+		if (firstKey != secondKey)
+		{
+			return firstKey < secondKey;
+		}
+		return contentWordsOf(*first.descriptor) < contentWordsOf(*second.descriptor);
 	});
 	for (size_t index = 1; index < sorted.size(); ++index)
 	{

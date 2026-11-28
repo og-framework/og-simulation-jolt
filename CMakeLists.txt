@@ -24,4 +24,9 @@ if(NOT TARGET og_simulation)
     add_subdirectory("${OG_SIMULATION_DIR}/OGSimulation" "${CMAKE_CURRENT_BINARY_DIR}/og_simulation")
 endif()
 
+if(NOT TARGET og_tickdriver)
+    get_target_property(OGJOLT_OGSIM_ROOT og_simulation SOURCE_DIR)
+    add_subdirectory("${OGJOLT_OGSIM_ROOT}/../og-tickdriver" "${CMAKE_CURRENT_BINARY_DIR}/og_tickdriver")
+endif()
+
 add_subdirectory(OGSimulationJolt)

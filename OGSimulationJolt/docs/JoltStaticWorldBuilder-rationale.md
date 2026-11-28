@@ -93,7 +93,7 @@ to an element with Jolt's scale-shape operation (§6).
 
 ## §5 Order: the same arena on every peer
 
-The elements are sorted by (layer key, surface, `stableKey`, content hash) (guard G-01), then grouped
+The elements are sorted by (layer key, surface, `stableKey`, content hash, content words) (guard G-01), then grouped
 and chunked in that order, and the bodies are created in that order through `JoltWorld::createStaticBody`,
 which hands out consecutive explicit ids after the slot bodies. Two peers given the same set of
 elements in any order therefore build identical chunks, identical child order and identical body ids.
@@ -101,7 +101,23 @@ elements in any order therefore build identical chunks, identical child order an
 The content hash (FNV-1a 64 over the shape, the transform, both category sets and the surface, bit
 exact) only matters when two elements share a `stableKey`. The importer can emit duplicates; the
 builder counts them (`duplicateStableKeys`) and the hash orders them by content instead of by their
-position in the description. Exact duplicates are interchangeable.
+position in the description. Exact duplicates are interchangeable: after the sort the builder reads only
+the layer key, the surface and the descriptor's `stableKey`, `localToWorld` and shape, and every one of
+those is in the sort key or the content.
+
+**The order is total (task 23).** `std::sort` leaves elements that compare equal in an order it does
+not specify, and MSVC's STL and libc++ need not leave them alike, so every tie between two elements
+that differ has to be broken by the comparison itself. After the hash, one tie is left: two different
+elements whose 64-bit hashes collide (same layer key, surface and `stableKey`). The last comparison is
+therefore the content itself: `contentWordsOf` emits the 32-bit words the hash consumes, in the same
+order (one `feedContent` feeds both the hash and the word list), and the two lists are compared
+lexicographically. Equal lists mean an exact duplicate, which is interchangeable. The words are built
+only when the four key fields tie, so a description without exact duplicates or a collision never
+builds them. The comparison changes no order that existed before: it is consulted only where the old
+comparison returned "equal" both ways.
+`JoltSortTotalOrder.StaticElementsWithCollidingContentHashesSortByContent` builds two boxes that share
+a `stableKey`, a layer and a surface, with translations chosen offline so that their content hashes
+collide, in both description orders, and requires the same element first in both.
 
 All bodies are then added in **one batch** (Jolt's add-bodies prepare and finalize), not activated
 (statics never are), followed by exactly **one** broadphase optimization. One batch and one

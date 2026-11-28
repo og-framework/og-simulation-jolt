@@ -21,8 +21,10 @@ elements, before the duplicate-key count and the group loop.
 
 **The prohibition.** Do not remove the sort, replace it with a sort on fewer fields, or reorder its
 fields. The order is: layer key, then surface (friction and restitution bits), then `stableKey`, then
-the content hash. Do not make the comparison depend on anything that differs between peers, such as a
-pointer, the element's position in the description, or a value the host does not send.
+the content hash, then, only when all four are equal, the content words themselves (`contentWordsOf`,
+the words the hash consumes, compared in order). Do not drop that last comparison, and do not make the
+comparison depend on anything that differs between peers, such as a pointer, the element's position in
+the description, or a value the host does not send.
 
 **The consequence.** The sorted order fixes which elements share a chunk, the order of the children in
 each chunk's compound shape, and the order in which the static bodies are created, which fixes their
@@ -32,7 +34,14 @@ different chunks and different ids, so their snapshots and their physics would d
 2026-10-07: with the `stableKey` and content-hash fields removed, all three shuffled descriptions in
 `JoltStaticWorldBuilder.ShuffledDescriptionGivesIdenticalStateAfter300TicksOfRestingCapsules` ended 300
 ticks with a different `stateHash` and different bytes. The content hash breaks ties between elements
-that share a `stableKey`; without it, duplicates keep their description order.
+that share a `stableKey`; without it, such elements stay in whatever order `std::sort` leaves equal
+elements in, which it does not specify: it follows the description order and can differ between
+standard libraries (MSVC's STL against libc++). The content words break the one tie the hash leaves:
+two different elements whose 64-bit hashes collide. Without them, that pair is left in the same
+unspecified order. Witnessed on 2026-11-17 (og-input-latency task 23): with the content-words comparison
+replaced by `return false`, `JoltSortTotalOrder.StaticElementsWithCollidingContentHashesSortByContent`
+failed on the reversed description order (the second box was built first, 0.728 m from where the first
+belongs).
 
 **What breaks if it moves.** The grouping loop that follows assumes the elements of one body (same
 layer key and surface) are adjacent. A sort that does not lead with the layer key and the surface

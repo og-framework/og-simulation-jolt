@@ -25,4 +25,12 @@
 #error "og-simulation-jolt: the Jolt GPU-compute backends (JPH_USE_DX12/VK/MTL/CPU_COMPUTE) are not vendored and must stay unset."
 #endif
 
+#ifndef JPH_CROSS_PLATFORM_DETERMINISTIC
+#error "og-simulation-jolt: JPH_CROSS_PLATFORM_DETERMINISTIC must be defined in every translation unit that includes Jolt (OGSimulationJolt.Build.cs PublicDefinitions, CMake PUBLIC on og_jolt_physics). It turns off Jolt's fused multiply-add and its platform-specific rounding paths, and flips a JPH_VERSION_ID feature bit."
+#endif
+
+#ifdef JPH_USE_FMADD
+#error "og-simulation-jolt: JPH_USE_FMADD must not be defined. A fused multiply-add rounds once where a multiply and an add round twice, so an arm64 build would step differently from an x64 one."
+#endif
+
 static_assert(sizeof(JPH::ObjectLayer) == 2, "og-simulation-jolt: JPH_OBJECT_LAYER_BITS must be 16 in every translation unit.");
